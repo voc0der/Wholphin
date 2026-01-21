@@ -137,7 +137,10 @@ class SeerrServerRepository
             username: String?,
             passwordOrApiKey: String,
         ): LoadingState {
-            val api = SeerrApiClient(url, passwordOrApiKey, okHttpClient)
+            // Only API-key auth should send an X-Api-Key header. For session-based auth we must
+            // avoid accidentally treating the password as an API key.
+            val apiKey = passwordOrApiKey.takeIf { authMethod == SeerrAuthMethod.API_KEY }
+            val api = SeerrApiClient(url, apiKey, okHttpClient)
             login(api, authMethod, username, passwordOrApiKey)
             return LoadingState.Success
         }
@@ -179,21 +182,25 @@ private suspend fun login(
 ): User =
     when (authMethod) {
         SeerrAuthMethod.LOCAL -> {
+            // Establish the session cookie, then fetch the fully-populated user config.
             client.authApi.authLocalPost(
                 AuthLocalPostRequest(
                     email = username ?: "",
                     password = password ?: "",
                 ),
             )
+            client.usersApi.authMeGet()
         }
 
         SeerrAuthMethod.JELLYFIN -> {
+            // Establish the session cookie, then fetch the fully-populated user config.
             client.authApi.authJellyfinPost(
                 AuthJellyfinPostRequest(
                     username = username ?: "",
                     password = password ?: "",
                 ),
             )
+            client.usersApi.authMeGet()
         }
 
         SeerrAuthMethod.API_KEY -> {
