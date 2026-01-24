@@ -189,6 +189,7 @@ private suspend fun login(
                     password = password ?: "",
                 ),
             )
+            client.usersApi.authMeGet()
         }
 
         SeerrAuthMethod.JELLYFIN -> {
@@ -199,6 +200,7 @@ private suspend fun login(
                     password = password ?: "",
                 ),
             )
+            client.usersApi.authMeGet()
         }
 
         SeerrAuthMethod.API_KEY -> {
