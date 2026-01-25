@@ -10,6 +10,7 @@ import androidx.datastore.core.DataStore
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
@@ -46,6 +47,51 @@ class PlayerFactory
         var currentPlayer: Player? = null
             private set
 
+        /**
+         * Builds a custom ExoPlayer [DefaultLoadControl] from preferences.
+         *
+         * If both min/max buffer seconds are 0, ExoPlayer defaults are used.
+         */
+        private fun buildExoLoadControl(prefs: PlaybackPreferences?): DefaultLoadControl? {
+            val minSecRaw = prefs?.exoMinBufferSeconds ?: 0L
+            val maxSecRaw = prefs?.exoMaxBufferSeconds ?: 0L
+            if (minSecRaw <= 0L && maxSecRaw <= 0L) return null
+
+            // Resolve missing values in a predictable way:
+            // - If only max is set, refill when buffer drops to ~half of max.
+            // - If only min is set, allow buffering to ~2x min.
+            var resolvedMax =
+                when {
+                    maxSecRaw > 0L -> maxSecRaw
+                    minSecRaw > 0L -> minSecRaw * 2L
+                    else -> 0L
+                }
+            var resolvedMin =
+                when {
+                    minSecRaw > 0L -> minSecRaw
+                    maxSecRaw > 0L -> (maxSecRaw / 2L).coerceAtLeast(5L)
+                    else -> 0L
+                }
+
+            // Guardrails
+            resolvedMax = resolvedMax.coerceIn(5L, 600L)
+            resolvedMin = resolvedMin.coerceIn(5L, resolvedMax)
+
+            val minMs = (resolvedMin * 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            val maxMs = (resolvedMax * 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
+            return DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    /* minBufferMs = */ minMs,
+                    /* maxBufferMs = */ maxMs,
+                    /* bufferForPlaybackMs = */ 2_500,
+                    /* bufferForPlaybackAfterRebufferMs = */ 5_000,
+                )
+                // When users opt into custom buffering, prioritize time-based buffering over size thresholds.
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+        }
+
         fun createVideoPlayer(): Player {
             if (currentPlayer?.isReleased == false) {
                 Timber.w("Player was not released before trying to create a new one!")
@@ -65,7 +111,10 @@ class PlayerFactory
                         val useGpuNext =
                             prefs?.mpvOptions?.useGpuNext
                                 ?: AppPreference.MpvGpuNext.defaultValue
-                        MpvPlayer(context, enableHardwareDecoding, useGpuNext)
+                        val mpvBufferMb =
+                            prefs?.mpvOptions?.demuxerCacheMegabytes
+                                ?: AppPreference.MpvBufferSizeMb.defaultValue
+                        MpvPlayer(context, enableHardwareDecoding, useGpuNext, mpvBufferMb)
                             .apply {
                                 playWhenReady = true
                             }
@@ -84,13 +133,20 @@ class PlayerFactory
                                 MediaExtensionStatus.MES_DISABLED -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                                 else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
                             }
+                        val loadControl = buildExoLoadControl(prefs)
                         ExoPlayer
                             .Builder(context)
                             .setRenderersFactory(
                                 WholphinRenderersFactory(context, decodeAv1)
                                     .setEnableDecoderFallback(true)
                                     .setExtensionRendererMode(rendererMode),
-                            ).build()
+                            )
+                            .apply {
+                                if (loadControl != null) {
+                                    setLoadControl(loadControl)
+                                }
+                            }
+                            .build()
                             .apply {
                                 playWhenReady = true
                             }
@@ -118,7 +174,8 @@ class PlayerFactory
                     -> {
                         val enableHardwareDecoding = prefs.mpvOptions.enableHardwareDecoding
                         val useGpuNext = prefs.mpvOptions.useGpuNext
-                        MpvPlayer(context, enableHardwareDecoding, useGpuNext)
+                        val mpvBufferMb = prefs.mpvOptions.demuxerCacheMegabytes
+                        MpvPlayer(context, enableHardwareDecoding, useGpuNext, mpvBufferMb)
                     }
 
                     PlayerBackend.EXO_PLAYER,
@@ -134,13 +191,20 @@ class PlayerFactory
                                 MediaExtensionStatus.MES_DISABLED -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                                 else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
                             }
+                        val loadControl = buildExoLoadControl(prefs)
                         ExoPlayer
                             .Builder(context)
                             .setRenderersFactory(
                                 WholphinRenderersFactory(context, decodeAv1)
                                     .setEnableDecoderFallback(true)
                                     .setExtensionRendererMode(rendererMode),
-                            ).build()
+                            )
+                            .apply {
+                                if (loadControl != null) {
+                                    setLoadControl(loadControl)
+                                }
+                            }
+                            .build()
                     }
                 }
             currentPlayer = newPlayer

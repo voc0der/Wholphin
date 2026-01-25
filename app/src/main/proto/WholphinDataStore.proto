@@ -38,6 +38,9 @@ enum PlayerBackend{
 message MpvOptions{
   bool enable_hardware_decoding = 1;
   bool use_gpu_next = 2;
+  // MPV demuxer read-ahead cache size cap in megabytes.
+  // 0 = Auto (device default)
+  int64 demuxer_cache_megabytes = 3;
 }
 
 message PlaybackOverrides{
@@ -76,6 +79,10 @@ message PlaybackPreferences {
   MpvOptions mpv_options = 21;
   bool refresh_rate_switching = 22;
   bool resolution_switching = 23;
+
+  // ExoPlayer buffering (0 = use ExoPlayer defaults)
+  int64 exo_min_buffer_seconds = 24;
+  int64 exo_max_buffer_seconds = 25;
 }
 
 message HomePagePreferences{

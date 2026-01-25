@@ -352,6 +352,8 @@
     <string name="disable_if_crash">Disable if you experience crashes</string>
     <string name="mpv_options">MPV Options</string>
     <string name="exoplayer_options">ExoPlayer Options</string>
+    <string name="exoplayer_min_buffer">ExoPlayer: Min buffer (seconds)</string>
+    <string name="exoplayer_max_buffer">ExoPlayer: Max buffer (seconds)</string>
     <string name="skip_segment_unknown">Skip Segment</string>
     <string name="skip_segment_commercial">Skip Ads</string>
     <string name="skip_segment_preview">Skip Preview</string>
@@ -366,6 +368,7 @@
     <string name="dolby_vision">Dolby Vision</string>
     <string name="dolby_atmos">Dolby Atmos</string>
     <string name="mpv_use_gpu_next">MPV: Use gpu-next</string>
+    <string name="mpv_buffer_size">MPV: Read-ahead buffer (MB)</string>
     <string name="mpv_conf">Edit mpv.conf</string>
     <string name="discard_change">Discard changes?</string>
     <string name="subtitle_margin">Margin</string>

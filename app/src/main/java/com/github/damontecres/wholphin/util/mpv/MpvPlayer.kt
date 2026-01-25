@@ -67,6 +67,11 @@ class MpvPlayer(
     private val context: Context,
     private val enableHardwareDecoding: Boolean,
     private val useGpuNext: Boolean,
+    /**
+     * MPV demuxer read-ahead cache size cap in megabytes.
+     * 0 = Auto (device default)
+     */
+    private val demuxerCacheMegabytes: Long = 0,
 ) : BasePlayer(),
     MPVLib.EventObserver,
     TrackSelector.InvalidationListener,
@@ -126,7 +131,13 @@ class MpvPlayer(
 
         MPVLib.setOptionString("opengl-es", "yes")
         MPVLib.setOptionString("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
-        val cacheMegs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) 64 else 32
+        val defaultCacheMegs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) 64 else 32
+        val cacheMegs =
+            if (demuxerCacheMegabytes > 0) {
+                demuxerCacheMegabytes.toInt().coerceIn(1, 4096)
+            } else {
+                defaultCacheMegs
+            }
         MPVLib.setOptionString("demuxer-max-bytes", "${cacheMegs * 1024 * 1024}")
         MPVLib.setOptionString("demuxer-max-back-bytes", "${cacheMegs * 1024 * 1024}")
 

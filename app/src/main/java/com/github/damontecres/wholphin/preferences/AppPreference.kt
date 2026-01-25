@@ -437,6 +437,48 @@ sealed interface AppPreference<Pref, T> {
                 summaryOff = R.string.disabled,
             )
 
+        val ExoMinBufferSeconds =
+            AppSliderPreference<AppPreferences>(
+                title = R.string.exoplayer_min_buffer,
+                // 0 = use ExoPlayer defaults
+                defaultValue = 0,
+                min = 0,
+                max = 300,
+                interval = 5,
+                getter = { it.playbackPreferences.exoMinBufferSeconds },
+                setter = { prefs, value ->
+                    prefs.updatePlaybackPreferences { exoMinBufferSeconds = value }
+                },
+                summarizer = { value ->
+                    when (value) {
+                        null -> null
+                        0L -> "Auto"
+                        else -> "${value}s"
+                    }
+                },
+            )
+
+        val ExoMaxBufferSeconds =
+            AppSliderPreference<AppPreferences>(
+                title = R.string.exoplayer_max_buffer,
+                // 0 = use ExoPlayer defaults
+                defaultValue = 0,
+                min = 0,
+                max = 300,
+                interval = 5,
+                getter = { it.playbackPreferences.exoMaxBufferSeconds },
+                setter = { prefs, value ->
+                    prefs.updatePlaybackPreferences { exoMaxBufferSeconds = value }
+                },
+                summarizer = { value ->
+                    when (value) {
+                        null -> null
+                        0L -> "Auto"
+                        else -> "${value}s"
+                    }
+                },
+            )
+
         val RememberSelectedTab =
             AppSwitchPreference<AppPreferences>(
                 title = R.string.remember_selected_tab,
@@ -792,6 +834,29 @@ sealed interface AppPreference<Pref, T> {
                 summaryOff = R.string.disabled,
             )
 
+        val MpvBufferSizeMb =
+            AppSliderPreference<AppPreferences>(
+                title = R.string.mpv_buffer_size,
+                // 0 = Auto (use device default)
+                defaultValue = 0,
+                min = 0,
+                max = 1024,
+                interval = 16,
+                getter = { it.playbackPreferences.mpvOptions.demuxerCacheMegabytes },
+                setter = { prefs, value ->
+                    // Clamp aggressively; MPV takes bytes, but this is user-facing MB.
+                    val clamped = value.coerceIn(0, 4096)
+                    prefs.updateMpvOptions { demuxerCacheMegabytes = clamped }
+                },
+                summarizer = { value ->
+                    when {
+                        value == null -> null
+                        value <= 0L -> "Auto"
+                        else -> "${value} MB"
+                    }
+                },
+            )
+
         val MpvConfFile =
             AppClickablePreference<AppPreferences>(
                 title = R.string.mpv_conf,
@@ -980,6 +1045,8 @@ private val ExoPlayerSettings =
         AppPreference.DirectPlayPgs,
         AppPreference.DirectPlayDoviProfile7,
         AppPreference.DecodeAv1,
+        AppPreference.ExoMinBufferSeconds,
+        AppPreference.ExoMaxBufferSeconds,
     )
 
 val ExoPlayerPreferences =
@@ -994,6 +1061,7 @@ private val MpvSettings =
     listOf(
         AppPreference.MpvHardwareDecoding,
         AppPreference.MpvGpuNext,
+        AppPreference.MpvBufferSizeMb,
         AppPreference.MpvConfFile,
     )
 
