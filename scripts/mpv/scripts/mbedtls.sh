@@ -18,5 +18,7 @@ else
 	./scripts/config.py set MBEDTLS_AESNI_C
 fi
 
+./scripts/config.py set MBEDTLS_SSL_PROTO_TLS1_3
+
 make -j$cores no_test
 make DESTDIR="$prefix_dir" install
