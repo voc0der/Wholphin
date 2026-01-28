@@ -83,13 +83,13 @@ fun SteppedSeekBarImpl(
         durationMs = durationMs,
         onLeft = { multiplier ->
             controllerViewState.pulseControls()
-            seekProgress = (progressToUse - offset * multiplier).coerceAtLeast(0f)
+            seekProgress = (seekProgress - offset * multiplier).coerceAtLeast(0f)
             hasSeeked = true
             seek(seekProgress)
         },
         onRight = { multiplier ->
             controllerViewState.pulseControls()
-            seekProgress = (progressToUse + offset * multiplier).coerceAtMost(1f)
+            seekProgress = (seekProgress + offset * multiplier).coerceAtMost(1f)
             hasSeeked = true
             seek(seekProgress)
         },
@@ -130,14 +130,14 @@ fun IntervalSeekBarImpl(
         durationMs = durationMs,
         onLeft = { multiplier ->
             controllerViewState.pulseControls()
-            seekPositionMs = (progressToUse - seekBack.inWholeMilliseconds * multiplier).coerceAtLeast(0L)
+            seekPositionMs = (seekPositionMs - seekBack.inWholeMilliseconds * multiplier).coerceAtLeast(0L)
             hasSeeked = true
             onSeek(seekPositionMs)
         },
         onRight = { multiplier ->
             controllerViewState.pulseControls()
             seekPositionMs =
-                (progressToUse + seekForward.inWholeMilliseconds * multiplier).coerceAtMost(durationMs)
+                (seekPositionMs + seekForward.inWholeMilliseconds * multiplier).coerceAtMost(durationMs)
             hasSeeked = true
             onSeek(seekPositionMs)
         },
