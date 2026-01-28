@@ -264,36 +264,36 @@ private fun calculateMultiplier(
         // Short videos (< 30 minutes): gentle acceleration
         durationMinutes < 30 -> {
             when {
-                repeatCount < 20 -> 1
-                repeatCount < 40 -> 2
+                repeatCount < 30 -> 1
+                repeatCount < 60 -> 2
                 else -> 2
             }
         }
         // Medium videos (30-90 minutes): moderate acceleration
         durationMinutes < 90 -> {
             when {
-                repeatCount < 15 -> 1
-                repeatCount < 30 -> 2
-                repeatCount < 45 -> 3
+                repeatCount < 25 -> 1
+                repeatCount < 50 -> 2
+                repeatCount < 75 -> 3
                 else -> 4
             }
         }
         // Long videos (90-150 minutes): more aggressive
         durationMinutes < 150 -> {
             when {
-                repeatCount < 10 -> 1
-                repeatCount < 20 -> 3
-                repeatCount < 30 -> 5
-                else -> 7
+                repeatCount < 20 -> 1
+                repeatCount < 40 -> 2
+                repeatCount < 60 -> 4
+                else -> 6
             }
         }
         // Very long videos (150+ minutes): very aggressive for practical seeking
         else -> {
             when {
-                repeatCount < 10 -> 1
-                repeatCount < 20 -> 4
-                repeatCount < 30 -> 8
-                else -> 12
+                repeatCount < 20 -> 1
+                repeatCount < 40 -> 3
+                repeatCount < 60 -> 6
+                else -> 10
             }
         }
     }
