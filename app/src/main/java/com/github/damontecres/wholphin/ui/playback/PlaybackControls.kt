@@ -43,10 +43,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -144,7 +143,6 @@ fun PlaybackControls(
     onSeekBarFocusConsumed: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    val focusManager = LocalFocusManager.current
     var initialButtonFocused by remember { mutableStateOf(false) }
 
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -163,14 +161,6 @@ fun PlaybackControls(
                     .filter { it }
                     .first()
                 delay(32L)
-                repeat(3) {
-                    if (seekBarFocused) {
-                        onSeekBarFocusConsumed.invoke()
-                        return@LaunchedEffect
-                    }
-                    focusManager.moveFocus(FocusDirection.Up)
-                    delay(32L)
-                }
                 repeat(30) {
                     if (seekBarFocused) {
                         onSeekBarFocusConsumed.invoke()
@@ -208,7 +198,14 @@ fun PlaybackControls(
             modifier =
                 Modifier
                     .padding(horizontal = 8.dp)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .onPreviewKeyEvent { event ->
+                        if (shouldFocusSeekBar && !seekBarFocused && (isSkipBack(event) || isSkipForward(event))) {
+                            seekBarFocusRequester.tryRequestFocus()
+                            return@onPreviewKeyEvent true
+                        }
+                        false
+                    },
         ) {
             LeftPlaybackButtons(
                 moreFocusRequester = moreFocusRequester,
