@@ -145,16 +145,18 @@ fun PlaybackControls(
         }
         controllerViewState.pulseControls()
     }
+    val seekBarFocused by seekBarInteractionSource.collectIsFocusedAsState()
     LaunchedEffect(controllerViewState.controlsVisible, shouldFocusSeekBar) {
         if (controllerViewState.controlsVisible) {
             if (shouldFocusSeekBar) {
-                var focused = false
                 repeat(120) {
-                    focused = seekBarFocusRequester.tryRequestFocus()
-                    if (focused) return@repeat
+                    if (seekBarFocused) {
+                        onSeekBarFocusConsumed.invoke()
+                        return@repeat
+                    }
+                    seekBarFocusRequester.tryRequestFocus()
                     delay(16L)
                 }
-                if (focused) onSeekBarFocusConsumed.invoke()
             } else {
                 initialFocusRequester.tryRequestFocus()
             }
