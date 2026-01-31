@@ -194,6 +194,12 @@ fun SeekBarDisplay(
                     .height(animatedIndicatorHeight)
                     .padding(horizontal = 4.dp)
                     .onPreviewKeyEvent { event ->
+                        // Only handle key events when the SeekBar has focus
+                        // Otherwise let them bubble up to trigger focus requests
+                        if (!isFocused) {
+                            return@onPreviewKeyEvent false
+                        }
+
                         val repeatCount = event.nativeKeyEvent.repeatCount
                         when (event.nativeKeyEvent.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT -> {
