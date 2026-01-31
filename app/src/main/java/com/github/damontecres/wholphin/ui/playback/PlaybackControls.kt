@@ -153,15 +153,16 @@ fun PlaybackControls(
         if (controllerViewState.controlsVisible) {
             if (shouldFocusSeekBar) {
                 initialFocusRequester.tryRequestFocus()
+                delay(32L)
                 repeat(3) {
                     if (seekBarFocused) {
                         onSeekBarFocusConsumed.invoke()
                         return@LaunchedEffect
                     }
                     focusManager.moveFocus(FocusDirection.Up)
-                    delay(16L)
+                    delay(32L)
                 }
-                repeat(60) {
+                repeat(30) {
                     if (seekBarFocused) {
                         onSeekBarFocusConsumed.invoke()
                         return@LaunchedEffect

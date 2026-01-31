@@ -147,7 +147,13 @@ fun PlaybackOverlay(
         }
 
     Box(
-        modifier = modifier,
+        modifier =
+            modifier.onPreviewKeyEvent { event ->
+                if (shouldFocusSeekBar && !seekBarFocused && (isSkipBack(event) || isSkipForward(event))) {
+                    return@onPreviewKeyEvent true
+                }
+                false
+            },
         contentAlignment = Alignment.BottomCenter,
     ) {
         AnimatedVisibility(
