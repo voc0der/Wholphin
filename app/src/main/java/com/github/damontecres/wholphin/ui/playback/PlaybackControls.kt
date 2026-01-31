@@ -41,7 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
@@ -66,7 +66,6 @@ import com.github.damontecres.wholphin.ui.PreviewTvSpec
 import com.github.damontecres.wholphin.ui.components.Button
 import com.github.damontecres.wholphin.ui.components.SelectedLeadingContent
 import com.github.damontecres.wholphin.ui.components.TextButton
-import com.github.damontecres.wholphin.ui.ifElse
 import com.github.damontecres.wholphin.ui.seekBack
 import com.github.damontecres.wholphin.ui.seekForward
 import com.github.damontecres.wholphin.ui.skipStringRes
@@ -140,6 +139,7 @@ fun PlaybackControls(
     onSeekBarFocusConsumed: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val onControllerInteraction = {
@@ -148,9 +148,28 @@ fun PlaybackControls(
         }
         controllerViewState.pulseControls()
     }
+    val seekBarFocused by seekBarInteractionSource.collectIsFocusedAsState()
     LaunchedEffect(controllerViewState.controlsVisible, shouldFocusSeekBar) {
         if (controllerViewState.controlsVisible) {
-            if (!shouldFocusSeekBar) {
+            if (shouldFocusSeekBar) {
+                initialFocusRequester.tryRequestFocus()
+                repeat(3) {
+                    if (seekBarFocused) {
+                        onSeekBarFocusConsumed.invoke()
+                        return@LaunchedEffect
+                    }
+                    focusManager.moveFocus(FocusDirection.Up)
+                    delay(16L)
+                }
+                repeat(60) {
+                    if (seekBarFocused) {
+                        onSeekBarFocusConsumed.invoke()
+                        return@LaunchedEffect
+                    }
+                    seekBarFocusRequester.tryRequestFocus()
+                    delay(16L)
+                }
+            } else {
                 initialFocusRequester.tryRequestFocus()
             }
         }
@@ -166,8 +185,6 @@ fun PlaybackControls(
             onSeekProgress = onSeekProgress,
             interactionSource = seekBarInteractionSource,
             focusRequester = seekBarFocusRequester,
-            shouldFocusSeekBar = shouldFocusSeekBar,
-            onSeekBarFocusConsumed = onSeekBarFocusConsumed,
             isEnabled = seekEnabled,
             intervals = seekBarIntervals,
             seekBack = seekBack,
@@ -187,7 +204,6 @@ fun PlaybackControls(
                 moreFocusRequester = moreFocusRequester,
                 onControllerInteraction = onControllerInteraction,
                 onClickPlaybackDialogType = onClickPlaybackDialogType,
-                focusEnabled = !shouldFocusSeekBar,
                 modifier = Modifier.align(Alignment.CenterStart),
             )
             PlaybackButtons(
@@ -201,7 +217,6 @@ fun PlaybackControls(
                 seekBack = seekBack,
                 seekForward = seekForward,
                 skipBackOnResume = skipBackOnResume,
-                focusEnabled = !shouldFocusSeekBar,
                 modifier = Modifier.align(Alignment.Center),
             )
             Row(
@@ -216,11 +231,7 @@ fun PlaybackControls(
                         modifier =
                             Modifier
                                 .align(Alignment.CenterVertically)
-                                .padding(end = 32.dp)
-                                .ifElse(
-                                    shouldFocusSeekBar,
-                                    Modifier.focusProperties { canFocus = false },
-                                ),
+                                .padding(end = 32.dp),
                     )
                 }
                 RightPlaybackButtons(
@@ -228,7 +239,6 @@ fun PlaybackControls(
                     settingsFocusRequester = settingsFocusRequester,
                     onControllerInteraction = onControllerInteraction,
                     onClickPlaybackDialogType = onClickPlaybackDialogType,
-                    focusEnabled = !shouldFocusSeekBar,
                     modifier = Modifier,
                 )
             }
@@ -248,27 +258,11 @@ fun SeekBar(
     seekForward: Duration,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
-    shouldFocusSeekBar: Boolean = false,
-    onSeekBarFocusConsumed: () -> Unit = {},
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     var bufferedProgress by remember(player) { mutableFloatStateOf(player.bufferedPosition.toFloat() / player.duration) }
     var position by remember(player) { mutableLongStateOf(player.currentPosition) }
     var progress by remember(player) { mutableFloatStateOf(player.currentPosition.toFloat() / player.duration) }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val focusManager = LocalFocusManager.current
-    LaunchedEffect(shouldFocusSeekBar) {
-        if (!shouldFocusSeekBar || focusRequester == null) return@LaunchedEffect
-        focusManager.clearFocus(force = true)
-        repeat(120) {
-            if (isFocused) {
-                onSeekBarFocusConsumed.invoke()
-                return@LaunchedEffect
-            }
-            focusRequester.tryRequestFocus()
-            delay(16L)
-        }
-    }
     LaunchedEffect(player) {
         while (isActive) {
             bufferedProgress = player.bufferedPosition.toFloat() / player.duration
@@ -329,7 +323,6 @@ fun LeftPlaybackButtons(
     moreFocusRequester: FocusRequester,
     onControllerInteraction: () -> Unit,
     onClickPlaybackDialogType: (PlaybackDialogType) -> Unit,
-    focusEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -345,7 +338,6 @@ fun LeftPlaybackButtons(
             },
             enabled = true,
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
             modifier = Modifier.focusRequester(moreFocusRequester),
         )
     }
@@ -357,7 +349,6 @@ fun RightPlaybackButtons(
     settingsFocusRequester: FocusRequester,
     onControllerInteraction: () -> Unit,
     onClickPlaybackDialogType: (PlaybackDialogType) -> Unit,
-    focusEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -373,7 +364,6 @@ fun RightPlaybackButtons(
                 onClickPlaybackDialogType.invoke(PlaybackDialogType.CAPTIONS)
             },
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
             modifier = Modifier.focusRequester(captionFocusRequester),
         )
         // Playback speed, etc
@@ -385,7 +375,6 @@ fun RightPlaybackButtons(
             },
             enabled = true,
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
             modifier = Modifier.focusRequester(settingsFocusRequester),
         )
     }
@@ -404,7 +393,6 @@ fun PlaybackButtons(
     seekBack: Duration,
     skipBackOnResume: Duration?,
     seekForward: Duration,
-    focusEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -419,7 +407,6 @@ fun PlaybackButtons(
             },
             enabled = previousEnabled,
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
         )
         PlaybackButton(
             iconRes = R.drawable.baseline_fast_rewind_24,
@@ -428,7 +415,6 @@ fun PlaybackButtons(
                 player.seekBack(seekBack)
             },
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
         )
         PlaybackButton(
             modifier = Modifier.focusRequester(initialFocusRequester),
@@ -445,7 +431,6 @@ fun PlaybackButtons(
                 }
             },
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
         )
         PlaybackButton(
             iconRes = R.drawable.baseline_fast_forward_24,
@@ -454,7 +439,6 @@ fun PlaybackButtons(
                 player.seekForward(seekForward)
             },
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
         )
         PlaybackButton(
             iconRes = R.drawable.baseline_skip_next_24,
@@ -464,7 +448,6 @@ fun PlaybackButtons(
             },
             enabled = nextEnabled,
             onControllerInteraction = onControllerInteraction,
-            focusEnabled = focusEnabled,
         )
     }
 }
@@ -476,7 +459,6 @@ fun PlaybackButton(
     onControllerInteraction: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    focusEnabled: Boolean = true,
     interactionSource: MutableInteractionSource? = null,
 ) {
     val selectedColor = MaterialTheme.colorScheme.border
@@ -493,10 +475,6 @@ fun PlaybackButton(
         interactionSource = interactionSource,
         modifier =
             modifier
-                .ifElse(
-                    !focusEnabled,
-                    Modifier.focusProperties { canFocus = false },
-                )
                 .size(36.dp, 36.dp)
                 .onFocusChanged { onControllerInteraction.invoke() },
     ) {

@@ -250,6 +250,7 @@ fun PlaybackPageContent(
                 seekBarFocusOnShow = true
             },
             scope = scope,
+            isSeekBarFocusPending = { seekBarFocusOnShow },
         )
 
     val onPlaybackActionClick: (PlaybackAction) -> Unit = {

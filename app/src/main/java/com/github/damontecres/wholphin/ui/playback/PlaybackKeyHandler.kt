@@ -33,6 +33,7 @@ class PlaybackKeyHandler(
     private val onPlaybackDialogTypeClick: (PlaybackDialogType) -> Unit,
     private val onSeekBarFocusRequest: () -> Unit,
     private val scope: CoroutineScope,
+    private val isSeekBarFocusPending: () -> Boolean,
     private val holdToTimelineMs: Long = 2000L,
 ) {
     private var holdKey: Key? = null
@@ -75,6 +76,14 @@ class PlaybackKeyHandler(
 
     fun onKeyEvent(it: KeyEvent): Boolean {
         if (it.type == KeyEventType.KeyUp) onInteraction.invoke()
+
+        if (
+            controllerViewState.controlsVisible &&
+                isSeekBarFocusPending.invoke() &&
+                (isSkipBack(it) || isSkipForward(it))
+        ) {
+            return true
+        }
 
         if (it.type == KeyEventType.KeyUp && holdKey == it.key && !holdTriggered) {
             resetHoldState()
