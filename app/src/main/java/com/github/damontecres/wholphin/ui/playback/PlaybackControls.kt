@@ -42,6 +42,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
@@ -203,6 +204,7 @@ fun PlaybackControls(
         ) {
             LeftPlaybackButtons(
                 moreFocusRequester = moreFocusRequester,
+                seekBarFocusRequester = seekBarFocusRequester,
                 onControllerInteraction = onControllerInteraction,
                 onClickPlaybackDialogType = onClickPlaybackDialogType,
                 modifier = Modifier.align(Alignment.CenterStart),
@@ -210,6 +212,7 @@ fun PlaybackControls(
             PlaybackButtons(
                 player = playerControls,
                 initialFocusRequester = initialFocusRequester,
+                seekBarFocusRequester = seekBarFocusRequester,
                 onControllerInteraction = onControllerInteraction,
                 onPlaybackActionClick = onPlaybackActionClick,
                 showPlay = showPlay,
@@ -232,12 +235,14 @@ fun PlaybackControls(
                         modifier =
                             Modifier
                                 .align(Alignment.CenterVertically)
-                                .padding(end = 32.dp),
+                                .padding(end = 32.dp)
+                                .focusProperties { up = seekBarFocusRequester },
                     )
                 }
                 RightPlaybackButtons(
                     captionFocusRequester = captionFocusRequester,
                     settingsFocusRequester = settingsFocusRequester,
+                    seekBarFocusRequester = seekBarFocusRequester,
                     onControllerInteraction = onControllerInteraction,
                     onClickPlaybackDialogType = onClickPlaybackDialogType,
                     modifier = Modifier,
@@ -322,6 +327,7 @@ private val buttonSpacing = 12.dp
 @Composable
 fun LeftPlaybackButtons(
     moreFocusRequester: FocusRequester,
+    seekBarFocusRequester: FocusRequester,
     onControllerInteraction: () -> Unit,
     onClickPlaybackDialogType: (PlaybackDialogType) -> Unit,
     modifier: Modifier = Modifier,
@@ -339,6 +345,7 @@ fun LeftPlaybackButtons(
             },
             enabled = true,
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
             modifier = Modifier.focusRequester(moreFocusRequester),
         )
     }
@@ -348,6 +355,7 @@ fun LeftPlaybackButtons(
 fun RightPlaybackButtons(
     captionFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
+    seekBarFocusRequester: FocusRequester,
     onControllerInteraction: () -> Unit,
     onClickPlaybackDialogType: (PlaybackDialogType) -> Unit,
     modifier: Modifier = Modifier,
@@ -365,6 +373,7 @@ fun RightPlaybackButtons(
                 onClickPlaybackDialogType.invoke(PlaybackDialogType.CAPTIONS)
             },
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
             modifier = Modifier.focusRequester(captionFocusRequester),
         )
         // Playback speed, etc
@@ -376,6 +385,7 @@ fun RightPlaybackButtons(
             },
             enabled = true,
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
             modifier = Modifier.focusRequester(settingsFocusRequester),
         )
     }
@@ -386,6 +396,7 @@ fun RightPlaybackButtons(
 fun PlaybackButtons(
     player: Player,
     initialFocusRequester: FocusRequester,
+    seekBarFocusRequester: FocusRequester,
     onControllerInteraction: () -> Unit,
     onPlaybackActionClick: (PlaybackAction) -> Unit,
     showPlay: Boolean,
@@ -408,6 +419,7 @@ fun PlaybackButtons(
             },
             enabled = previousEnabled,
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
         )
         PlaybackButton(
             iconRes = R.drawable.baseline_fast_rewind_24,
@@ -416,6 +428,7 @@ fun PlaybackButtons(
                 player.seekBack(seekBack)
             },
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
         )
         PlaybackButton(
             modifier = Modifier.focusRequester(initialFocusRequester),
@@ -432,6 +445,7 @@ fun PlaybackButtons(
                 }
             },
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
         )
         PlaybackButton(
             iconRes = R.drawable.baseline_fast_forward_24,
@@ -440,6 +454,7 @@ fun PlaybackButtons(
                 player.seekForward(seekForward)
             },
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
         )
         PlaybackButton(
             iconRes = R.drawable.baseline_skip_next_24,
@@ -449,6 +464,7 @@ fun PlaybackButtons(
             },
             enabled = nextEnabled,
             onControllerInteraction = onControllerInteraction,
+            upFocusRequester = seekBarFocusRequester,
         )
     }
 }
@@ -458,6 +474,7 @@ fun PlaybackButton(
     @DrawableRes iconRes: Int,
     onClick: () -> Unit,
     onControllerInteraction: () -> Unit,
+    upFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource? = null,
@@ -476,6 +493,9 @@ fun PlaybackButton(
         interactionSource = interactionSource,
         modifier =
             modifier
+                .focusProperties {
+                    upFocusRequester?.let { up = it }
+                }
                 .size(36.dp, 36.dp)
                 .onFocusChanged { onControllerInteraction.invoke() },
     ) {
