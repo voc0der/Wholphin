@@ -148,17 +148,13 @@ fun PlaybackControls(
     LaunchedEffect(controllerViewState.controlsVisible, shouldFocusSeekBar) {
         if (controllerViewState.controlsVisible) {
             if (shouldFocusSeekBar) {
-                var focused = seekBarFocusRequester.tryRequestFocus()
-                if (!focused) {
-                    repeat(2) {
-                        delay(16L)
-                        focused = seekBarFocusRequester.tryRequestFocus()
-                        if (focused) return@repeat
-                    }
+                var focused = false
+                repeat(120) {
+                    focused = seekBarFocusRequester.tryRequestFocus()
+                    if (focused) return@repeat
+                    delay(16L)
                 }
-                if (focused) {
-                    onSeekBarFocusConsumed.invoke()
-                }
+                if (focused) onSeekBarFocusConsumed.invoke()
             } else {
                 initialFocusRequester.tryRequestFocus()
             }

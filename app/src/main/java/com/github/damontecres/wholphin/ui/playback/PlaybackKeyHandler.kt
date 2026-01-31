@@ -33,7 +33,7 @@ class PlaybackKeyHandler(
     private val onPlaybackDialogTypeClick: (PlaybackDialogType) -> Unit,
     private val onSeekBarFocusRequest: () -> Unit,
     private val scope: CoroutineScope,
-    private val holdToTimelineMs: Long = 400L,
+    private val holdToTimelineMs: Long = 2000L,
 ) {
     private var holdKey: Key? = null
     private var holdTriggered = false
