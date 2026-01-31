@@ -9,6 +9,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.Util
 import com.github.damontecres.wholphin.ui.seekBack
 import com.github.damontecres.wholphin.ui.seekForward
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.time.Duration
 
 /**
@@ -27,9 +31,90 @@ class PlaybackKeyHandler(
     private val onInteraction: () -> Unit,
     private val onStop: () -> Unit,
     private val onPlaybackDialogTypeClick: (PlaybackDialogType) -> Unit,
+    private val onSeekBarFocusRequest: () -> Unit,
+    private val scope: CoroutineScope,
+    private val holdToTimelineMs: Long = 400L,
 ) {
+    private var holdKey: Key? = null
+    private var holdTriggered = false
+    private var holdDownTime = 0L
+    private var holdJob: Job? = null
+
+    private fun isSkipBackKey(key: Key): Boolean =
+        key == Key.DirectionLeft || key == Key.ButtonL1 || key == Key.ButtonL2
+
+    private fun isSkipForwardKey(key: Key): Boolean =
+        key == Key.DirectionRight || key == Key.ButtonR1 || key == Key.ButtonR2
+
+    private fun cancelHoldTimer() {
+        holdJob?.cancel()
+        holdJob = null
+    }
+
+    private fun resetHoldState() {
+        cancelHoldTimer()
+        holdTriggered = false
+        holdKey = null
+        holdDownTime = 0L
+    }
+
+    private fun triggerHold(key: Key) {
+        if (holdTriggered) return
+        holdTriggered = true
+        cancelHoldTimer()
+        if (skipWithLeftRight && isSkipBackKey(key)) {
+            updateSkipIndicator(-seekBack.inWholeMilliseconds)
+            player.seekBack(seekBack)
+        } else if (skipWithLeftRight && isSkipForwardKey(key)) {
+            player.seekForward(seekForward)
+            updateSkipIndicator(seekForward.inWholeMilliseconds)
+        }
+        controllerViewState.showControls()
+        onSeekBarFocusRequest.invoke()
+    }
+
     fun onKeyEvent(it: KeyEvent): Boolean {
         if (it.type == KeyEventType.KeyUp) onInteraction.invoke()
+
+        if (it.type == KeyEventType.KeyUp && holdKey == it.key && !holdTriggered) {
+            resetHoldState()
+        }
+
+        if (it.type == KeyEventType.KeyDown) {
+            if (
+                controlsEnabled &&
+                    !controllerViewState.controlsVisible &&
+                    skipWithLeftRight &&
+                    (isSkipBack(it) || isSkipForward(it))
+            ) {
+                val nativeEvent = it.nativeKeyEvent
+                val key = it.key
+                if (holdKey != key || holdDownTime != nativeEvent.downTime) {
+                    resetHoldState()
+                    holdKey = key
+                    holdDownTime = nativeEvent.downTime
+                    holdJob =
+                        scope.launch {
+                            delay(holdToTimelineMs)
+                            if (!holdTriggered && holdKey == key && holdDownTime == nativeEvent.downTime) {
+                                triggerHold(key)
+                            }
+                        }
+                }
+                val heldMs = nativeEvent.eventTime - nativeEvent.downTime
+                val isHeld = nativeEvent.repeatCount > 0 && heldMs >= holdToTimelineMs
+                if (isHeld) {
+                    triggerHold(key)
+                    return true
+                }
+            }
+            return false
+        }
+
+        if (holdTriggered && holdKey == it.key) {
+            resetHoldState()
+            return true
+        }
 
         var result = true
         if (!controlsEnabled) {

@@ -206,6 +206,8 @@ fun PlaybackPageContent(
     val scaledModifier =
         Modifier.resizeWithContentScale(contentScale, presentationState.videoSizeDp)
     val focusRequester = remember { FocusRequester() }
+    val seekBarFocusRequester = remember { FocusRequester() }
+    var seekBarFocusOnShow by remember { mutableStateOf(false) }
     val playPauseState = rememberPlayPauseButtonState(player)
     val seekBarState = rememberSeekBarState(player, scope)
 
@@ -244,6 +246,10 @@ fun PlaybackPageContent(
                 viewModel.navigationManager.goBack()
             },
             onPlaybackDialogTypeClick = { playbackDialog = it },
+            onSeekBarFocusRequest = {
+                seekBarFocusOnShow = true
+            },
+            scope = scope,
         )
 
     val onPlaybackActionClick: (PlaybackAction) -> Unit = {
@@ -387,6 +393,11 @@ fun PlaybackPageContent(
                     onPlaybackActionClick = onPlaybackActionClick,
                     onClickPlaybackDialogType = { playbackDialog = it },
                     onSeekBarChange = seekBarState::onValueChange,
+                    seekBarFocusRequester = seekBarFocusRequester,
+                    shouldFocusSeekBar = seekBarFocusOnShow,
+                    onSeekBarFocusConsumed = {
+                        seekBarFocusOnShow = false
+                    },
                     showDebugInfo = showDebugInfo,
                     currentPlayback = currentPlayback,
                     chapters = mediaInfo?.chapters ?: listOf(),

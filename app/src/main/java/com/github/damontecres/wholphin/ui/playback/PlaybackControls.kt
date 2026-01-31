@@ -132,6 +132,9 @@ fun PlaybackControls(
     modifier: Modifier = Modifier,
     initialFocusRequester: FocusRequester = remember { FocusRequester() },
     seekBarInteractionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    seekBarFocusRequester: FocusRequester = remember { FocusRequester() },
+    shouldFocusSeekBar: Boolean = false,
+    onSeekBarFocusConsumed: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
 
@@ -142,9 +145,23 @@ fun PlaybackControls(
         }
         controllerViewState.pulseControls()
     }
-    LaunchedEffect(controllerViewState.controlsVisible) {
+    LaunchedEffect(controllerViewState.controlsVisible, shouldFocusSeekBar) {
         if (controllerViewState.controlsVisible) {
-            initialFocusRequester.tryRequestFocus()
+            if (shouldFocusSeekBar) {
+                var focused = seekBarFocusRequester.tryRequestFocus()
+                if (!focused) {
+                    repeat(2) {
+                        delay(16L)
+                        focused = seekBarFocusRequester.tryRequestFocus()
+                        if (focused) return@repeat
+                    }
+                }
+                if (focused) {
+                    onSeekBarFocusConsumed.invoke()
+                }
+            } else {
+                initialFocusRequester.tryRequestFocus()
+            }
         }
     }
     Column(
@@ -157,6 +174,7 @@ fun PlaybackControls(
             controllerViewState = controllerViewState,
             onSeekProgress = onSeekProgress,
             interactionSource = seekBarInteractionSource,
+            focusRequester = seekBarFocusRequester,
             isEnabled = seekEnabled,
             intervals = seekBarIntervals,
             seekBack = seekBack,
@@ -229,6 +247,7 @@ fun SeekBar(
     seekBack: Duration,
     seekForward: Duration,
     modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     var bufferedProgress by remember(player) { mutableFloatStateOf(player.bufferedPosition.toFloat() / player.duration) }
@@ -255,6 +274,7 @@ fun SeekBar(
             controllerViewState = controllerViewState,
 //            intervals = intervals,
             modifier = Modifier.fillMaxWidth(),
+            focusRequester = focusRequester,
             interactionSource = interactionSource,
             enabled = isEnabled,
             durationMs = player.duration,
