@@ -42,6 +42,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -145,19 +146,9 @@ fun PlaybackControls(
         }
         controllerViewState.pulseControls()
     }
-    val seekBarFocused by seekBarInteractionSource.collectIsFocusedAsState()
     LaunchedEffect(controllerViewState.controlsVisible, shouldFocusSeekBar) {
         if (controllerViewState.controlsVisible) {
-            if (shouldFocusSeekBar) {
-                repeat(120) {
-                    if (seekBarFocused) {
-                        onSeekBarFocusConsumed.invoke()
-                        return@repeat
-                    }
-                    seekBarFocusRequester.tryRequestFocus()
-                    delay(16L)
-                }
-            } else {
+            if (!shouldFocusSeekBar) {
                 initialFocusRequester.tryRequestFocus()
             }
         }
@@ -173,6 +164,8 @@ fun PlaybackControls(
             onSeekProgress = onSeekProgress,
             interactionSource = seekBarInteractionSource,
             focusRequester = seekBarFocusRequester,
+            shouldFocusSeekBar = shouldFocusSeekBar,
+            onSeekBarFocusConsumed = onSeekBarFocusConsumed,
             isEnabled = seekEnabled,
             intervals = seekBarIntervals,
             seekBack = seekBack,
@@ -246,11 +239,27 @@ fun SeekBar(
     seekForward: Duration,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    shouldFocusSeekBar: Boolean = false,
+    onSeekBarFocusConsumed: () -> Unit = {},
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     var bufferedProgress by remember(player) { mutableFloatStateOf(player.bufferedPosition.toFloat() / player.duration) }
     var position by remember(player) { mutableLongStateOf(player.currentPosition) }
     var progress by remember(player) { mutableFloatStateOf(player.currentPosition.toFloat() / player.duration) }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(shouldFocusSeekBar) {
+        if (!shouldFocusSeekBar || focusRequester == null) return@LaunchedEffect
+        focusManager.clearFocus(force = true)
+        repeat(120) {
+            if (isFocused) {
+                onSeekBarFocusConsumed.invoke()
+                return@LaunchedEffect
+            }
+            focusRequester.tryRequestFocus()
+            delay(16L)
+        }
+    }
     LaunchedEffect(player) {
         while (isActive) {
             bufferedProgress = player.bufferedPosition.toFloat() / player.duration
