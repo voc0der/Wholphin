@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +76,8 @@ import com.github.damontecres.wholphin.ui.theme.WholphinTheme
 import com.github.damontecres.wholphin.ui.tryRequestFocus
 import com.github.damontecres.wholphin.util.ExceptionHandler
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.MediaSegmentDto
@@ -141,6 +144,7 @@ fun PlaybackControls(
 ) {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    var initialButtonFocused by remember { mutableStateOf(false) }
 
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val onControllerInteraction = {
@@ -154,6 +158,9 @@ fun PlaybackControls(
         if (controllerViewState.controlsVisible) {
             if (shouldFocusSeekBar) {
                 initialFocusRequester.tryRequestFocus()
+                snapshotFlow { initialButtonFocused }
+                    .filter { it }
+                    .first()
                 delay(32L)
                 repeat(3) {
                     if (seekBarFocused) {
@@ -221,6 +228,9 @@ fun PlaybackControls(
                 seekBack = seekBack,
                 seekForward = seekForward,
                 skipBackOnResume = skipBackOnResume,
+                onInitialFocusChanged = { focused ->
+                    initialButtonFocused = focused
+                },
                 modifier = Modifier.align(Alignment.Center),
             )
             Row(
@@ -405,6 +415,7 @@ fun PlaybackButtons(
     seekBack: Duration,
     skipBackOnResume: Duration?,
     seekForward: Duration,
+    onInitialFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -431,7 +442,10 @@ fun PlaybackButtons(
             upFocusRequester = seekBarFocusRequester,
         )
         PlaybackButton(
-            modifier = Modifier.focusRequester(initialFocusRequester),
+            modifier =
+                Modifier
+                    .focusRequester(initialFocusRequester)
+                    .onFocusChanged { onInitialFocusChanged(it.isFocused) },
             iconRes = if (showPlay) R.drawable.baseline_play_arrow_24 else R.drawable.baseline_pause_24,
             onClick = {
                 onControllerInteraction.invoke()
