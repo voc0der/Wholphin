@@ -65,12 +65,9 @@ class PlaybackKeyHandler(
         cancelHoldTimer()
 
         // Hold should NOT perform a skip. It should only surface controls and move focus to the seek bar.
-        // Show controls first, then request focus after a delay to let the slide animation complete
+        // Request seekbar focus immediately - other buttons will be disabled until focus is acquired
         controllerViewState.showControls()
-        scope.launch {
-            delay(350L) // Wait for AnimatedVisibility slide animation to complete (~300ms default)
-            onSeekBarFocusRequest.invoke()
-        }
+        onSeekBarFocusRequest.invoke()
     }
 
     fun onKeyEvent(it: KeyEvent): Boolean {
