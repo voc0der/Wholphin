@@ -156,12 +156,8 @@ fun PlaybackControls(
     LaunchedEffect(controllerViewState.controlsVisible, shouldFocusSeekBar) {
         if (controllerViewState.controlsVisible) {
             if (shouldFocusSeekBar) {
-                initialFocusRequester.tryRequestFocus()
-                snapshotFlow { initialButtonFocused }
-                    .filter { it }
-                    .first()
-                delay(32L)
-                repeat(30) {
+                // Skip the initial button and go straight to aggressively requesting seekbar focus
+                repeat(50) {
                     if (seekBarFocused) {
                         onSeekBarFocusConsumed.invoke()
                         return@LaunchedEffect
