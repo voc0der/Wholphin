@@ -321,7 +321,7 @@ fun PlaybackPageContent(
                 Modifier
                     .fillMaxSize(playerSize)
                     .align(Alignment.TopCenter)
-                    .onKeyEvent(keyHandler::onKeyEvent)
+                    .onPreviewKeyEvent(keyHandler::onKeyEvent)
                     .focusRequester(focusRequester)
                     .focusable(),
         ) {
