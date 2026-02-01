@@ -96,21 +96,6 @@ class PlaybackKeyHandler(
         }
 
         if (it.type == KeyEventType.KeyDown) {
-            // If we're currently tracking a hold (even if controls are now visible), keep consuming
-            // events for that specific key to prevent the seekbar from scrubbing while the key is held
-            if (holdKey == it.key && it.nativeKeyEvent.downTime == holdDownTime) {
-                val nativeEvent = it.nativeKeyEvent
-                // If we haven't triggered yet and we've crossed the threshold, trigger now
-                if (!holdTriggered && nativeEvent.repeatCount > 0) {
-                    val heldMs = nativeEvent.eventTime - nativeEvent.downTime
-                    if (heldMs >= holdToTimelineMs) {
-                        triggerHold(it.key)
-                    }
-                }
-                // Always consume key-downs for the held key to prevent seekbar scrubbing
-                return true
-            }
-
             if (
                 controlsEnabled &&
                     !controllerViewState.controlsVisible &&
@@ -120,19 +105,28 @@ class PlaybackKeyHandler(
                 val nativeEvent = it.nativeKeyEvent
                 val key = it.key
 
-                // Start the hold timer for this new key press
-                resetHoldState()
-                holdKey = key
-                holdDownTime = nativeEvent.downTime
-                holdJob =
-                    scope.launch {
-                        delay(holdToTimelineMs)
-                        if (!holdTriggered && holdKey == key && holdDownTime == nativeEvent.downTime) {
-                            triggerHold(key)
+                // Start / refresh the hold timer for this physical key press
+                if (holdKey != key || holdDownTime != nativeEvent.downTime) {
+                    resetHoldState()
+                    holdKey = key
+                    holdDownTime = nativeEvent.downTime
+                    holdJob =
+                        scope.launch {
+                            delay(holdToTimelineMs)
+                            if (!holdTriggered && holdKey == key && holdDownTime == nativeEvent.downTime) {
+                                triggerHold(key)
+                            }
                         }
-                    }
+                }
 
-                // Consume this initial key-down
+                // If the system is already generating repeat events, trigger as soon as we cross the threshold.
+                val heldMs = nativeEvent.eventTime - nativeEvent.downTime
+                if (nativeEvent.repeatCount > 0 && heldMs >= holdToTimelineMs) {
+                    triggerHold(key)
+                }
+
+                // Consume left/right key-downs ONLY while controls are hidden
+                // Once controls are visible, let the events through so the seekbar can handle them
                 return true
             }
             return false
