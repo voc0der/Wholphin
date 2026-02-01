@@ -85,16 +85,6 @@ class PlaybackKeyHandler(
             // If hold did NOT trigger, fall through so a quick tap still performs a skip.
         }
 
-        // While we are trying to move focus to the seek bar, swallow left/right so they can't
-        // move focus to the gutter buttons.
-        if (
-            controllerViewState.controlsVisible &&
-                isSeekBarFocusPending.invoke() &&
-                (isSkipBack(it) || isSkipForward(it))
-        ) {
-            return true
-        }
-
         if (it.type == KeyEventType.KeyDown) {
             if (
                 controlsEnabled &&
