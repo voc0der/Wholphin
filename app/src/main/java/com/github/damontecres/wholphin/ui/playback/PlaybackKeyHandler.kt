@@ -65,8 +65,12 @@ class PlaybackKeyHandler(
         cancelHoldTimer()
 
         // Hold should NOT perform a skip. It should only surface controls and move focus to the seek bar.
-        onSeekBarFocusRequest.invoke()
+        // Show controls first, then request focus after a delay to let the composition settle
         controllerViewState.showControls()
+        scope.launch {
+            delay(50L) // Give controls time to compose
+            onSeekBarFocusRequest.invoke()
+        }
     }
 
     fun onKeyEvent(it: KeyEvent): Boolean {
