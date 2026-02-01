@@ -169,6 +169,8 @@ fun PlaybackControls(
                     seekBarFocusRequester.tryRequestFocus()
                     delay(16L)
                 }
+                // If focus could not be acquired, do not leave the UI in a "pending focus" state forever.
+                onSeekBarFocusConsumed.invoke()
             } else {
                 initialFocusRequester.tryRequestFocus()
             }

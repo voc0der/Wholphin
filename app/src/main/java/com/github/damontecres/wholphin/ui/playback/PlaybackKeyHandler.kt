@@ -63,30 +63,32 @@ class PlaybackKeyHandler(
         if (holdTriggered) return
         holdTriggered = true
         cancelHoldTimer()
-        if (skipWithLeftRight && isSkipBackKey(key)) {
-            updateSkipIndicator(-seekBack.inWholeMilliseconds)
-            player.seekBack(seekBack)
-        } else if (skipWithLeftRight && isSkipForwardKey(key)) {
-            player.seekForward(seekForward)
-            updateSkipIndicator(seekForward.inWholeMilliseconds)
-        }
-        controllerViewState.showControls()
+
+        // Hold should NOT perform a skip. It should only surface controls and move focus to the seek bar.
         onSeekBarFocusRequest.invoke()
+        controllerViewState.showControls()
     }
 
     fun onKeyEvent(it: KeyEvent): Boolean {
         if (it.type == KeyEventType.KeyUp) onInteraction.invoke()
 
+        // Always clean up hold state on key-up of the held key.
+        // If the hold triggered, consume key-up so we don't also run the tap-skip behaviour.
+        if (it.type == KeyEventType.KeyUp && holdKey == it.key) {
+            val wasHoldTriggered = holdTriggered
+            resetHoldState()
+            if (wasHoldTriggered) return true
+            // If hold did NOT trigger, fall through so a quick tap still performs a skip.
+        }
+
+        // While we are trying to move focus to the seek bar, swallow left/right so they can't
+        // move focus to the gutter buttons.
         if (
             controllerViewState.controlsVisible &&
                 isSeekBarFocusPending.invoke() &&
                 (isSkipBack(it) || isSkipForward(it))
         ) {
             return true
-        }
-
-        if (it.type == KeyEventType.KeyUp && holdKey == it.key && !holdTriggered) {
-            resetHoldState()
         }
 
         if (it.type == KeyEventType.KeyDown) {
@@ -98,6 +100,8 @@ class PlaybackKeyHandler(
             ) {
                 val nativeEvent = it.nativeKeyEvent
                 val key = it.key
+
+                // Start / refresh the hold timer for this physical key press
                 if (holdKey != key || holdDownTime != nativeEvent.downTime) {
                     resetHoldState()
                     holdKey = key
@@ -110,19 +114,18 @@ class PlaybackKeyHandler(
                             }
                         }
                 }
+
+                // If the system is already generating repeat events, trigger as soon as we cross the threshold.
                 val heldMs = nativeEvent.eventTime - nativeEvent.downTime
-                val isHeld = nativeEvent.repeatCount > 0 && heldMs >= holdToTimelineMs
-                if (isHeld) {
+                if (nativeEvent.repeatCount > 0 && heldMs >= holdToTimelineMs) {
                     triggerHold(key)
-                    return true
                 }
+
+                // Consume ALL left/right key-downs while controls are hidden so they can't move focus
+                // to the left/right gutter buttons before we show the controller.
+                return true
             }
             return false
-        }
-
-        if (holdTriggered && holdKey == it.key) {
-            resetHoldState()
-            return true
         }
 
         var result = true
