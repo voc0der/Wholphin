@@ -44,6 +44,17 @@ jobs:
           echo "LATEST_TAG=$LATEST_TAG" >> "$GITHUB_ENV"
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+      - name: Configure extension repository credentials
+        env:
+          EXTENSIONS_USERNAME: "${{ secrets.EXTENSIONS_USERNAME }}"
+          EXTENSIONS_PASSWORD: "${{ secrets.EXTENSIONS_PASSWORD }}"
+        run: |
+          if [[ -n "$EXTENSIONS_USERNAME" && -n "$EXTENSIONS_PASSWORD" ]]; then
+            {
+              echo "ORG_GRADLE_PROJECT_WholphinExtensionsUsername=$EXTENSIONS_USERNAME"
+              echo "ORG_GRADLE_PROJECT_WholphinExtensionsPassword=$EXTENSIONS_PASSWORD"
+            } >> "$GITHUB_ENV"
+          fi
       - name: Build release app
         id: build
         env:
@@ -51,8 +62,6 @@ jobs:
           KEY_PASSWORD: "${{ secrets.KEY_PASSWORD }}"
           KEY_STORE_PASSWORD: "${{ secrets.KEY_STORE_PASSWORD }}"
           SIGNING_KEY: "${{ secrets.SIGNING_KEY }}"
-          ORG_GRADLE_PROJECT_WholphinExtensionsUsername: "${{ secrets.EXTENSIONS_USERNAME }}"
-          ORG_GRADLE_PROJECT_WholphinExtensionsPassword: "${{ secrets.EXTENSIONS_PASSWORD }}"
         run: |
           ./gradlew clean assembleDefaultRelease assembleDefaultDebug --no-daemon
 
