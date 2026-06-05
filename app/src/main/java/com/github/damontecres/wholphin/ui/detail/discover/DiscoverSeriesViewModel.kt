@@ -36,7 +36,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import org.jellyfin.sdk.api.client.ApiClient
 import timber.log.Timber
@@ -62,8 +61,8 @@ class DiscoverSeriesViewModel
         private val _state = MutableStateFlow(DiscoverSeriesState())
         val state: StateFlow<DiscoverSeriesState> = _state
 
-        val userConfig = seerrServerRepository.current.map { it?.config }
-        val request4kEnabled = seerrServerRepository.current.map { it?.request4kTvEnabled ?: false }
+        val userConfig = seerrServerRepository.currentUserConfig
+        val request4kEnabled = seerrServerRepository.request4kTvEnabled
 
         init {
             init()

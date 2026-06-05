@@ -46,7 +46,16 @@ class SeerrService
         private val imageUrlService: ImageUrlService,
         private val seerrProxyClient: SeerrProxyClient,
     ) {
-        val api: SeerrApiClient get() = seerApi.api
+        val api: SeerrApiClient
+            get() =
+                if (seerApi.active) {
+                    seerApi.api
+                } else {
+                    (
+                        seerrServerRepository.requestProxyConnection.value
+                            as? SeerrRequestProxyConnectionStatus.Available
+                    )?.api ?: seerApi.api
+                }
 
         val active get() = seerrServerRepository.active
         val requestProxyActive get() = seerrServerRepository.requestProxyActive
@@ -247,14 +256,21 @@ class SeerrService
                     )
                 }
             }
-            val current = seerrServerRepository.current.firstOrNull() ?: return null
-            val cacheImages = current.serverConfig.cacheImages == true
+            val current = seerrServerRepository.current.firstOrNull()
+            if (current == null &&
+                seerrServerRepository.requestProxyConnection.value !is SeerrRequestProxyConnectionStatus.Available
+            ) {
+                return null
+            }
+            val cacheImages = current?.serverConfig?.cacheImages == true
             val base =
-                if (cacheImages) {
-                    current.server.url.removeSuffix("/") + "/imageproxy/tmdb"
-                } else {
-                    "https://image.tmdb.org"
-                }
+                current
+                    ?.takeIf { cacheImages }
+                    ?.server
+                    ?.url
+                    ?.removeSuffix("/")
+                    ?.plus("/imageproxy/tmdb")
+                    ?: "https://image.tmdb.org"
             val prefix =
                 when (imageType) {
                     ImageType.PRIMARY -> "/t/p/w500"

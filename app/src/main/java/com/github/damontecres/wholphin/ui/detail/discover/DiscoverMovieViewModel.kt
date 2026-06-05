@@ -36,7 +36,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import org.jellyfin.sdk.api.client.ApiClient
 import timber.log.Timber
@@ -63,9 +62,8 @@ class DiscoverMovieViewModel
         private val _state = MutableStateFlow(DiscoverMovieState())
         val state: StateFlow<DiscoverMovieState> = _state
 
-        val userConfig = seerrServerRepository.current.map { it?.config }
-        val request4kEnabled =
-            seerrServerRepository.current.map { it?.request4kMovieEnabled ?: false }
+        val userConfig = seerrServerRepository.currentUserConfig
+        val request4kEnabled = seerrServerRepository.request4kMovieEnabled
 
         init {
             init()

@@ -1,5 +1,6 @@
 package com.github.damontecres.wholphin.api.seerrproxy
 
+import com.github.damontecres.wholphin.api.seerr.SeerrApiClient
 import com.github.damontecres.wholphin.api.seerr.infrastructure.Serializer
 import com.github.damontecres.wholphin.services.hilt.AuthOkHttpClient
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -73,12 +74,26 @@ class SeerrProxyClient
             }
         }
 
+        fun createApiClient(jellyfinBaseUrl: String): SeerrApiClient =
+            SeerrApiClient(
+                baseUrl = jellyfinBaseUrl.pluginApiUrl(),
+                apiKey = null,
+                okHttpClient = okHttpClient,
+            )
+
         private fun String.pluginUrl(action: String) =
             toHttpUrl()
                 .newBuilder()
                 .addPathSegments("Plugins/SeerrProxy")
                 .addPathSegment(action)
                 .build()
+
+        private fun String.pluginApiUrl() =
+            toHttpUrl()
+                .newBuilder()
+                .addPathSegments("Plugins/SeerrProxy/Api")
+                .build()
+                .toString()
 
         private suspend fun Call.await(): Response =
             suspendCancellableCoroutine { continuation ->

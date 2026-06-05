@@ -1,5 +1,6 @@
 package com.github.damontecres.wholphin.services
 
+import com.github.damontecres.wholphin.BuildConfig
 import com.github.damontecres.wholphin.api.seerr.SeerrApiClient
 import com.github.damontecres.wholphin.api.seerr.model.AuthJellyfinPostRequest
 import com.github.damontecres.wholphin.api.seerr.model.AuthLocalPostRequest
@@ -21,6 +22,7 @@ import com.github.damontecres.wholphin.util.LoadingState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -60,13 +62,38 @@ class SeerrServerRepository
             connection.map { (it as? SeerrConnectionStatus.Success)?.current?.server }
         val currentUser: Flow<SeerrUser?> =
             connection.map { (it as? SeerrConnectionStatus.Success)?.current?.user }
-        val currentUserId: Flow<Int?> = current.map { it?.config?.id }
+        val currentUserConfig: Flow<SeerrUserConfig?> =
+            combine(current, requestProxyConnection) { current, requestProxy ->
+                current?.config ?: (requestProxy as? SeerrRequestProxyConnectionStatus.Available)?.userConfig
+            }
+        val currentServerConfig: Flow<PublicSettings?> =
+            combine(current, requestProxyConnection) { current, requestProxy ->
+                current?.serverConfig ?: (requestProxy as? SeerrRequestProxyConnectionStatus.Available)?.serverConfig
+            }
+        val currentUserId: Flow<Int?> = currentUserConfig.map { it?.id }
+        val request4kMovieEnabled: Flow<Boolean> =
+            combine(currentUserConfig, currentServerConfig) { config, serverConfig ->
+                (serverConfig?.movie4kEnabled ?: false) &&
+                    config.hasPermission(SeerrPermission.REQUEST_4K_MOVIE)
+            }
+        val request4kTvEnabled: Flow<Boolean> =
+            combine(currentUserConfig, currentServerConfig) { config, serverConfig ->
+                (serverConfig?.series4kEnabled ?: false) &&
+                    config.hasPermission(SeerrPermission.REQUEST_4K_TV)
+            }
 
         /**
          * Whether Seerr integration is currently active of not
          */
         val active: Flow<Boolean> =
-            connection.map { it is SeerrConnectionStatus.Success && seerrApi.active }
+            combine(connection, requestProxyConnection) { connection, requestProxy ->
+                (connection is SeerrConnectionStatus.Success && seerrApi.active) ||
+                    (
+                        BuildConfig.DISCOVER_ENABLED &&
+                            requestProxy is SeerrRequestProxyConnectionStatus.Available &&
+                            requestProxy.discoverAvailable
+                    )
+            }
         val requestProxyActive: Flow<Boolean> =
             requestProxyConnection.map { it is SeerrRequestProxyConnectionStatus.Available }
 
@@ -89,16 +116,37 @@ class SeerrServerRepository
                     Timber.d(ex, "Seerr Proxy is not available at %s", jellyfinServerUrl)
                     null
                 }
-            val available = status?.isAvailable == true
-            _requestProxyConnection.update {
-                if (available) {
-                    Timber.i("Found Seerr Proxy for %s", jellyfinServerUrl)
-                    SeerrRequestProxyConnectionStatus.Available(jellyfinServerUrl, status)
-                } else {
-                    SeerrRequestProxyConnectionStatus.NotAvailable
-                }
+            if (status?.isAvailable != true) {
+                _requestProxyConnection.update { SeerrRequestProxyConnectionStatus.NotAvailable }
+                return false
             }
-            return available
+
+            val api = seerrProxyClient.createApiClient(jellyfinServerUrl)
+            val userConfig =
+                try {
+                    api.usersApi.authMeGet()
+                } catch (ex: Exception) {
+                    Timber.w(ex, "Seerr Proxy API user config is not available at %s", jellyfinServerUrl)
+                    null
+                }
+            val serverConfig =
+                try {
+                    api.settingsApi.settingsPublicGet()
+                } catch (ex: Exception) {
+                    Timber.w(ex, "Seerr Proxy API public settings are not available at %s", jellyfinServerUrl)
+                    null
+                }
+            _requestProxyConnection.update {
+                Timber.i("Found Seerr Proxy for %s", jellyfinServerUrl)
+                SeerrRequestProxyConnectionStatus.Available(
+                    jellyfinServerUrl,
+                    status,
+                    api,
+                    userConfig,
+                    serverConfig,
+                )
+            }
+            return true
         }
 
         fun error(
@@ -244,8 +292,14 @@ sealed interface SeerrRequestProxyConnectionStatus {
     data class Available(
         val jellyfinServerUrl: String,
         val status: SeerrProxyStatusResponse,
+        val api: SeerrApiClient,
+        val userConfig: SeerrUserConfig?,
+        val serverConfig: PublicSettings?,
     ) : SeerrRequestProxyConnectionStatus
 }
+
+val SeerrRequestProxyConnectionStatus.Available.discoverAvailable: Boolean
+    get() = userConfig != null && serverConfig != null
 
 data class CurrentSeerr(
     val server: SeerrServer,
