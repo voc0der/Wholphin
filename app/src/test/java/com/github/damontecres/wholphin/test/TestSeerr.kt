@@ -199,6 +199,29 @@ class TestSeerr {
     }
 
     @Test
+    fun testSeerrProxyStatusAvailableWithJellyfinResponseCasing() {
+        val status =
+            Serializer.kotlinxSerializationJson.decodeFromString<SeerrProxyStatusResponse>(
+                """
+                {
+                  "Enabled": true,
+                  "Configured": true,
+                  "JellyfinUserId": "d340eac9d80e4a9ee133ddf1479",
+                  "Linked": true,
+                  "SeerrUserId": 13,
+                  "DisplayName": "vocoder",
+                  "SeerrReachable": true
+                }
+                """.trimIndent(),
+            )
+
+        assertTrue(status.isAvailable)
+        assertEquals("d340eac9d80e4a9ee133ddf1479", status.jellyfinUserId)
+        assertEquals(13, status.seerrUserId)
+        assertEquals("vocoder", status.displayName)
+    }
+
+    @Test
     fun testSeerrProxyStatusUnavailable() {
         assertFalse(
             SeerrProxyStatusResponse(

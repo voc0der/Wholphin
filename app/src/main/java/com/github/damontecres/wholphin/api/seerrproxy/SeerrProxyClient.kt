@@ -3,10 +3,12 @@ package com.github.damontecres.wholphin.api.seerrproxy
 import com.github.damontecres.wholphin.api.seerr.infrastructure.Serializer
 import com.github.damontecres.wholphin.services.hilt.AuthOkHttpClient
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNames
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -114,23 +116,32 @@ class SeerrProxyException(
     message: String?,
 ) : RuntimeException(message ?: responseBody ?: "Seerr Proxy request failed")
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class SeerrProxyStatusResponse(
     @SerialName("enabled")
+    @JsonNames("Enabled")
     val enabled: Boolean = false,
     @SerialName("configured")
+    @JsonNames("Configured")
     val configured: Boolean = false,
     @SerialName("jellyfinUserId")
+    @JsonNames("JellyfinUserId")
     val jellyfinUserId: String? = null,
     @SerialName("linked")
+    @JsonNames("Linked")
     val linked: Boolean? = null,
     @SerialName("seerrUserId")
+    @JsonNames("SeerrUserId")
     val seerrUserId: Int? = null,
     @SerialName("displayName")
+    @JsonNames("DisplayName")
     val displayName: String? = null,
     @SerialName("seerrReachable")
+    @JsonNames("SeerrReachable")
     val seerrReachable: Boolean? = null,
     @SerialName("mappingError")
+    @JsonNames("MappingError")
     val mappingError: String? = null,
 )
 
