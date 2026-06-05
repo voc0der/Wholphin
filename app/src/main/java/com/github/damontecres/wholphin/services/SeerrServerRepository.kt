@@ -5,6 +5,9 @@ import com.github.damontecres.wholphin.api.seerr.model.AuthJellyfinPostRequest
 import com.github.damontecres.wholphin.api.seerr.model.AuthLocalPostRequest
 import com.github.damontecres.wholphin.api.seerr.model.PublicSettings
 import com.github.damontecres.wholphin.api.seerr.model.User
+import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyClient
+import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyStatusResponse
+import com.github.damontecres.wholphin.api.seerrproxy.isAvailable
 import com.github.damontecres.wholphin.data.SeerrServerDao
 import com.github.damontecres.wholphin.data.ServerRepository
 import com.github.damontecres.wholphin.data.model.SeerrAuthMethod
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import okhttp3.OkHttpClient
 import org.jellyfin.sdk.model.api.ImageType
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.Duration.Companion.seconds
@@ -37,11 +41,18 @@ class SeerrServerRepository
         private val seerrApi: SeerrApi,
         private val seerrServerDao: SeerrServerDao,
         private val serverRepository: ServerRepository,
+        private val seerrProxyClient: SeerrProxyClient,
         @param:StandardOkHttpClient private val okHttpClient: OkHttpClient,
     ) {
         private val _connection =
             MutableStateFlow<SeerrConnectionStatus>(SeerrConnectionStatus.NotConfigured)
         val connection: StateFlow<SeerrConnectionStatus> = _connection
+        private val _requestProxyConnection =
+            MutableStateFlow<SeerrRequestProxyConnectionStatus>(
+                SeerrRequestProxyConnectionStatus.NotAvailable,
+            )
+        val requestProxyConnection: StateFlow<SeerrRequestProxyConnectionStatus> =
+            _requestProxyConnection
 
         val current: Flow<CurrentSeerr?> =
             _connection.map { (it as? SeerrConnectionStatus.Success)?.current }
@@ -56,10 +67,38 @@ class SeerrServerRepository
          */
         val active: Flow<Boolean> =
             connection.map { it is SeerrConnectionStatus.Success && seerrApi.active }
+        val requestProxyActive: Flow<Boolean> =
+            requestProxyConnection.map { it is SeerrRequestProxyConnectionStatus.Available }
 
         fun clear() {
             _connection.update { SeerrConnectionStatus.NotConfigured }
+            _requestProxyConnection.update { SeerrRequestProxyConnectionStatus.NotAvailable }
             seerrApi.update("", null)
+        }
+
+        fun clearRequestProxy() {
+            _requestProxyConnection.update { SeerrRequestProxyConnectionStatus.NotAvailable }
+        }
+
+        suspend fun refreshRequestProxy(): Boolean {
+            val jellyfinServerUrl = serverRepository.currentServer?.url ?: return false
+            val status =
+                try {
+                    seerrProxyClient.status(jellyfinServerUrl)
+                } catch (ex: Exception) {
+                    Timber.d(ex, "Seerr Proxy is not available at %s", jellyfinServerUrl)
+                    null
+                }
+            val available = status?.isAvailable == true
+            _requestProxyConnection.update {
+                if (available) {
+                    Timber.i("Found Seerr Proxy for %s", jellyfinServerUrl)
+                    SeerrRequestProxyConnectionStatus.Available(jellyfinServerUrl, status)
+                } else {
+                    SeerrRequestProxyConnectionStatus.NotAvailable
+                }
+            }
+            return available
         }
 
         fun error(
@@ -197,6 +236,15 @@ sealed interface SeerrConnectionStatus {
     data class Success(
         val current: CurrentSeerr,
     ) : SeerrConnectionStatus
+}
+
+sealed interface SeerrRequestProxyConnectionStatus {
+    data object NotAvailable : SeerrRequestProxyConnectionStatus
+
+    data class Available(
+        val jellyfinServerUrl: String,
+        val status: SeerrProxyStatusResponse,
+    ) : SeerrRequestProxyConnectionStatus
 }
 
 data class CurrentSeerr(

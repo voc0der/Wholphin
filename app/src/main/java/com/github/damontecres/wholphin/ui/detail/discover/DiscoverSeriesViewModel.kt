@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.damontecres.wholphin.api.seerr.model.RelatedVideo
-import com.github.damontecres.wholphin.api.seerr.model.RequestPostRequest
 import com.github.damontecres.wholphin.api.seerr.model.RequestRequestIdPutRequest
 import com.github.damontecres.wholphin.api.seerr.model.TvDetails
 import com.github.damontecres.wholphin.data.ServerRepository
@@ -224,13 +223,10 @@ class DiscoverSeriesViewModel
                             )
                         } else {
                             Timber.v("New request for %s seasons", seasons.size)
-                            seerrService.api.requestApi.requestPost(
-                                RequestPostRequest(
-                                    is4k = is4k,
-                                    mediaId = id,
-                                    mediaType = RequestPostRequest.MediaType.TV,
-                                    seasons = seasons.toList(),
-                                ),
+                            seerrService.requestTv(
+                                mediaId = id,
+                                seasons = seasons.toList(),
+                                is4k = is4k,
                             )
                         }
                     } catch (ex: CancellationException) {

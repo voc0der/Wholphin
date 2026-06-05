@@ -69,6 +69,7 @@ class PreferencesViewModel
                 )
 
         val seerrConnection = seerrServerRepository.connection
+        val seerrRequestProxyConnection = seerrServerRepository.requestProxyConnection
 
         private val _quickConnectStatus = MutableStateFlow<LoadingState>(LoadingState.Pending)
         val quickConnectStatus: StateFlow<LoadingState> = _quickConnectStatus
