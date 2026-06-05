@@ -34,6 +34,12 @@ class SwitchSeerrViewModel
 
         val serverConnectionStatus = MutableStateFlow<LoadingState>(LoadingState.Pending)
 
+        init {
+            viewModelScope.launchIO {
+                seerrServerRepository.refreshRequestProxy()
+            }
+        }
+
         fun submitServer(
             url: String,
             username: String,

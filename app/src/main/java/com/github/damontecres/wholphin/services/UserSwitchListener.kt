@@ -67,6 +67,9 @@ class UserSwitchListener
                 if (BuildConfig.DISCOVER_ENABLED) {
                     // Check for seerr server
                     launchIO {
+                        seerrServerRepository.refreshRequestProxy()
+                    }
+                    launchIO {
                         seerrServerDao
                             .getUsersByJellyfinUser(user.rowId)
                             .lastOrNull()

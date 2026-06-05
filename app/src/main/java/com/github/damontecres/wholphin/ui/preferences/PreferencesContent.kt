@@ -59,6 +59,7 @@ import com.github.damontecres.wholphin.preferences.screensaverPreferences
 import com.github.damontecres.wholphin.preferences.updatePlaybackPreferences
 import com.github.damontecres.wholphin.services.Release
 import com.github.damontecres.wholphin.services.SeerrConnectionStatus
+import com.github.damontecres.wholphin.services.SeerrRequestProxyConnectionStatus
 import com.github.damontecres.wholphin.services.UpdateChecker
 import com.github.damontecres.wholphin.ui.components.ConfirmDialog
 import com.github.damontecres.wholphin.ui.components.ErrorMessage
@@ -107,6 +108,7 @@ fun PreferencesContent(
 
     var cacheUsage by remember { mutableStateOf(CacheUsage(0, 0, 0)) }
     val seerrConnection by viewModel.seerrConnection.collectAsState()
+    val seerrRequestProxyConnection by viewModel.seerrRequestProxyConnection.collectAsState()
     var seerrDialogMode by remember { mutableStateOf<SeerrDialogMode>(SeerrDialogMode.None) }
     var showQuickConnectDialog by remember { mutableStateOf(false) }
     var showLocaleChoiceDialog by remember { mutableStateOf(false) }
@@ -436,6 +438,8 @@ fun PreferencesContent(
                                 }
 
                                 AppPreference.SeerrIntegration -> {
+                                    val proxyAvailable =
+                                        seerrRequestProxyConnection is SeerrRequestProxyConnectionStatus.Available
                                     ClickPreference(
                                         title = stringResource(pref.title),
                                         onClick = {
@@ -449,7 +453,17 @@ fun PreferencesContent(
                                                     }
 
                                                     SeerrConnectionStatus.NotConfigured -> {
-                                                        SeerrDialogMode.Add
+                                                        if (proxyAvailable) {
+                                                            Toast
+                                                                .makeText(
+                                                                    context,
+                                                                    context.getString(R.string.seerr_proxy_enabled),
+                                                                    Toast.LENGTH_SHORT,
+                                                                ).show()
+                                                            SeerrDialogMode.None
+                                                        } else {
+                                                            SeerrDialogMode.Add
+                                                        }
                                                     }
 
                                                     is SeerrConnectionStatus.Success -> {
@@ -467,9 +481,13 @@ fun PreferencesContent(
                                                 }
 
                                                 SeerrConnectionStatus.NotConfigured -> {
-                                                    stringResource(
-                                                        R.string.add_server,
-                                                    )
+                                                    if (proxyAvailable) {
+                                                        stringResource(R.string.seerr_proxy_enabled)
+                                                    } else {
+                                                        stringResource(
+                                                            R.string.add_server,
+                                                        )
+                                                    }
                                                 }
 
                                                 is SeerrConnectionStatus.Success -> {

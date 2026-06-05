@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.github.damontecres.wholphin.api.seerr.model.MediaRequest
 import com.github.damontecres.wholphin.api.seerr.model.MovieDetails
 import com.github.damontecres.wholphin.api.seerr.model.RelatedVideo
-import com.github.damontecres.wholphin.api.seerr.model.RequestPostRequest
 import com.github.damontecres.wholphin.data.ServerRepository
 import com.github.damontecres.wholphin.data.model.DiscoverItem
 import com.github.damontecres.wholphin.data.model.DiscoverRating
@@ -170,12 +169,9 @@ class DiscoverMovieViewModel
         ) {
             viewModelScope.launchIO {
                 try {
-                    seerrService.api.requestApi.requestPost(
-                        RequestPostRequest(
-                            is4k = is4k,
-                            mediaId = id,
-                            mediaType = RequestPostRequest.MediaType.MOVIE,
-                        ),
+                    seerrService.requestMovie(
+                        mediaId = id,
+                        is4k = is4k,
                     )
                 } catch (ex: kotlinx.coroutines.CancellationException) {
                     throw ex
