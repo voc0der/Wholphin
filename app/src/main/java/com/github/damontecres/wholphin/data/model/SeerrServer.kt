@@ -69,6 +69,7 @@ enum class SeerrAuthMethod {
     LOCAL,
     JELLYFIN,
     API_KEY,
+    JELLYFIN_PLUGIN_PROXY,
 }
 
 /**

@@ -10,23 +10,18 @@ import com.github.damontecres.wholphin.api.seerr.model.RequestPostRequest
 import com.github.damontecres.wholphin.api.seerr.model.SearchGet200ResponseResultsInner
 import com.github.damontecres.wholphin.api.seerr.model.TvDetails
 import com.github.damontecres.wholphin.api.seerr.model.TvResult
-import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyClient
-import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyException
-import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyRequest
 import com.github.damontecres.wholphin.data.model.BaseItem
 import com.github.damontecres.wholphin.data.model.DiscoverItem
+import com.github.damontecres.wholphin.data.model.SeerrAuthMethod
 import com.github.damontecres.wholphin.data.model.SeerrAvailability
 import com.github.damontecres.wholphin.data.model.SeerrItemType
 import com.github.damontecres.wholphin.ui.isNotNullOrBlank
 import com.github.damontecres.wholphin.ui.toLocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
-import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,21 +39,11 @@ class SeerrService
         private val seerApi: SeerrApi,
         private val seerrServerRepository: SeerrServerRepository,
         private val imageUrlService: ImageUrlService,
-        private val seerrProxyClient: SeerrProxyClient,
     ) {
         val api: SeerrApiClient
-            get() =
-                if (seerApi.active) {
-                    seerApi.api
-                } else {
-                    (
-                        seerrServerRepository.requestProxyConnection.value
-                            as? SeerrRequestProxyConnectionStatus.Available
-                    )?.api ?: seerApi.api
-                }
+            get() = seerApi.api
 
         val active get() = seerrServerRepository.active
-        val requestProxyActive get() = seerrServerRepository.requestProxyActive
 
         suspend fun search(
             query: String,
@@ -175,15 +160,6 @@ class SeerrService
             mediaId: Int,
             is4k: Boolean,
         ) {
-            val proxyRequest =
-                SeerrProxyRequest(
-                    mediaType = "movie",
-                    mediaId = mediaId,
-                    is4k = is4k,
-                )
-            if (tryRequestViaProxy(proxyRequest)) {
-                return
-            }
             api.requestApi.requestPost(
                 RequestPostRequest(
                     is4k = is4k,
@@ -198,16 +174,6 @@ class SeerrService
             seasons: List<Int>,
             is4k: Boolean,
         ) {
-            val proxyRequest =
-                SeerrProxyRequest(
-                    mediaType = "tv",
-                    mediaId = mediaId,
-                    seasons = JsonArray(seasons.map(::JsonPrimitive)),
-                    is4k = is4k,
-                )
-            if (tryRequestViaProxy(proxyRequest)) {
-                return
-            }
             api.requestApi.requestPost(
                 RequestPostRequest(
                     is4k = is4k,
@@ -216,23 +182,6 @@ class SeerrService
                     seasons = seasons,
                 ),
             )
-        }
-
-        private suspend fun tryRequestViaProxy(request: SeerrProxyRequest): Boolean {
-            val proxy =
-                seerrServerRepository.requestProxyConnection.first()
-                    as? SeerrRequestProxyConnectionStatus.Available ?: return false
-            try {
-                seerrProxyClient.createRequest(proxy.jellyfinServerUrl, request)
-                return true
-            } catch (ex: SeerrProxyException) {
-                if (!ex.canFallbackToDirectSeerr()) {
-                    throw ex
-                }
-                Timber.w(ex, "Seerr Proxy unavailable, falling back to direct Seerr")
-                seerrServerRepository.clearRequestProxy()
-                return false
-            }
         }
 
         private suspend fun createImageUrl(
@@ -257,15 +206,13 @@ class SeerrService
                 }
             }
             val current = seerrServerRepository.current.firstOrNull()
-            if (current == null &&
-                seerrServerRepository.requestProxyConnection.value !is SeerrRequestProxyConnectionStatus.Available
-            ) {
-                return null
-            }
-            val cacheImages = current?.serverConfig?.cacheImages == true
+            if (current == null) return null
+            val cacheImages =
+                current.serverConfig.cacheImages == true &&
+                    current.user.authMethod != SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY
             val base =
                 current
-                    ?.takeIf { cacheImages }
+                    .takeIf { cacheImages }
                     ?.server
                     ?.url
                     ?.removeSuffix("/")
@@ -424,6 +371,3 @@ class SeerrService
                 jellyfinItemId = credit.mediaInfo?.jellyfinMediaId?.toUUIDOrNull(),
             )
     }
-
-private fun SeerrProxyException.canFallbackToDirectSeerr() =
-    statusCode == 401 || statusCode == 403 || statusCode == 404 || statusCode == 502 || statusCode == 503

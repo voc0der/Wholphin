@@ -10,13 +10,14 @@ import okhttp3.OkHttpClient
  * Wrapper for [SeerrApiClient]. In most cases, you should use [SeerrService] instead.
  */
 class SeerrApi(
-    private val okHttpClient: OkHttpClient,
+    private val standardOkHttpClient: OkHttpClient,
+    private val authOkHttpClient: OkHttpClient,
 ) {
     var api: SeerrApiClient =
         SeerrApiClient(
             baseUrl = "",
             apiKey = null,
-            okHttpClient = okHttpClient,
+            okHttpClient = standardOkHttpClient,
         )
         private set
 
@@ -25,7 +26,13 @@ class SeerrApi(
     fun update(
         baseUrl: String,
         apiKey: String?,
+        useJellyfinAuth: Boolean = false,
     ) {
-        api = SeerrApiClient(createSeerrApiUrl(baseUrl), apiKey, okHttpClient)
+        api =
+            SeerrApiClient(
+                baseUrl = if (useJellyfinAuth) baseUrl else createSeerrApiUrl(baseUrl),
+                apiKey = apiKey,
+                okHttpClient = if (useJellyfinAuth) authOkHttpClient else standardOkHttpClient,
+            )
     }
 }

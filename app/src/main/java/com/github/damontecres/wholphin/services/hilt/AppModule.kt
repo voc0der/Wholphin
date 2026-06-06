@@ -238,8 +238,9 @@ object AppModule {
     @Provides
     @Singleton
     fun seerrApi(
-        @StandardOkHttpClient okHttpClient: OkHttpClient,
-    ) = SeerrApi(okHttpClient)
+        @StandardOkHttpClient standardOkHttpClient: OkHttpClient,
+        @AuthOkHttpClient authOkHttpClient: OkHttpClient,
+    ) = SeerrApi(standardOkHttpClient, authOkHttpClient)
 }
 
 @Module
