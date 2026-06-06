@@ -7,16 +7,12 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNames
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
 import javax.inject.Inject
@@ -48,38 +44,20 @@ class SeerrProxyClient
             }
         }
 
-        suspend fun createRequest(
-            jellyfinBaseUrl: String,
-            request: SeerrProxyRequest,
-        ) {
-            val body =
-                json
-                    .encodeToString(request)
-                    .toRequestBody(JSON_MEDIA_TYPE)
-            val httpRequest =
-                Request
-                    .Builder()
-                    .url(jellyfinBaseUrl.pluginUrl("Request"))
-                    .post(body)
-                    .build()
-
-            okHttpClient.newCall(httpRequest).await().use { response ->
-                if (!response.isSuccessful) {
-                    throw SeerrProxyException(
-                        statusCode = response.code,
-                        responseBody = response.body.string(),
-                        message = response.message,
-                    )
-                }
-            }
-        }
-
         fun createApiClient(jellyfinBaseUrl: String): SeerrApiClient =
             SeerrApiClient(
-                baseUrl = jellyfinBaseUrl.pluginApiUrl(),
+                baseUrl = createApiUrl(jellyfinBaseUrl),
                 apiKey = null,
                 okHttpClient = okHttpClient,
             )
+
+        fun createApiUrl(jellyfinBaseUrl: String): String =
+            jellyfinBaseUrl
+                .toHttpUrl()
+                .newBuilder()
+                .addPathSegments("Plugins/SeerrProxy/api/v1")
+                .build()
+                .toString()
 
         private fun String.pluginUrl(action: String) =
             toHttpUrl()
@@ -87,13 +65,6 @@ class SeerrProxyClient
                 .addPathSegments("Plugins/SeerrProxy")
                 .addPathSegment(action)
                 .build()
-
-        private fun String.pluginApiUrl() =
-            toHttpUrl()
-                .newBuilder()
-                .addPathSegments("Plugins/SeerrProxy/Api")
-                .build()
-                .toString()
 
         private suspend fun Call.await(): Response =
             suspendCancellableCoroutine { continuation ->
@@ -116,20 +87,10 @@ class SeerrProxyClient
                     },
                 )
             }
-
-        private companion object {
-            val JSON_MEDIA_TYPE = "application/json".toMediaType()
-        }
     }
 
 val SeerrProxyStatusResponse.isAvailable: Boolean
     get() = enabled && configured && linked == true && seerrReachable != false
-
-class SeerrProxyException(
-    val statusCode: Int,
-    val responseBody: String?,
-    message: String?,
-) : RuntimeException(message ?: responseBody ?: "Seerr Proxy request failed")
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
@@ -158,30 +119,4 @@ data class SeerrProxyStatusResponse(
     @SerialName("mappingError")
     @JsonNames("MappingError")
     val mappingError: String? = null,
-)
-
-@Serializable
-data class SeerrProxyRequest(
-    @SerialName("mediaType")
-    val mediaType: String,
-    @SerialName("mediaId")
-    val mediaId: Int? = null,
-    @SerialName("tmdbId")
-    val tmdbId: Int? = null,
-    @SerialName("tvdbId")
-    val tvdbId: Int? = null,
-    @SerialName("seasons")
-    val seasons: JsonElement? = null,
-    @SerialName("is4k")
-    val is4k: Boolean? = null,
-    @SerialName("serverId")
-    val serverId: Int? = null,
-    @SerialName("profileId")
-    val profileId: Int? = null,
-    @SerialName("rootFolder")
-    val rootFolder: String? = null,
-    @SerialName("languageProfileId")
-    val languageProfileId: Int? = null,
-    @SerialName("tags")
-    val tags: List<Int>? = null,
 )
