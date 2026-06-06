@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -18,17 +19,19 @@ import com.github.damontecres.wholphin.ui.components.DialogItem
 import com.github.damontecres.wholphin.ui.components.DialogParams
 import com.github.damontecres.wholphin.ui.components.DialogPopup
 import com.github.damontecres.wholphin.util.LoadingState
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddSeerServerDialog(
     currentUsername: String?,
     status: LoadingState,
-    jellyfinPluginProxyAvailable: Boolean,
+    onTryJellyfinPluginProxy: suspend () -> Boolean,
     onSubmit: (url: String, username: String, passwordOrApiKey: String, method: SeerrAuthMethod) -> Unit,
     onResetStatus: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     var authMethod by remember { mutableStateOf<SeerrAuthMethod?>(null) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(status) {
         if (status is LoadingState.Success) {
             onDismissRequest.invoke()
@@ -73,12 +76,15 @@ fun AddSeerServerDialog(
 
         null -> {
             ChooseSeerrLoginType(
-                jellyfinPluginProxyAvailable = jellyfinPluginProxyAvailable,
                 onDismissRequest = onDismissRequest,
                 onChoose = {
                     onResetStatus.invoke()
-                    if (it == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) {
-                        onSubmit.invoke("", "", "", it)
+                    if (it == SeerrAuthMethod.JELLYFIN) {
+                        scope.launch {
+                            if (!onTryJellyfinPluginProxy()) {
+                                authMethod = it
+                            }
+                        }
                     } else {
                         authMethod = it
                     }
@@ -90,7 +96,6 @@ fun AddSeerServerDialog(
 
 @Composable
 fun ChooseSeerrLoginType(
-    jellyfinPluginProxyAvailable: Boolean,
     onDismissRequest: () -> Unit,
     onChoose: (SeerrAuthMethod) -> Unit,
 ) {
@@ -99,34 +104,20 @@ fun ChooseSeerrLoginType(
             fromLongClick = false,
             title = stringResource(R.string.seerr_login),
             items =
-                buildList {
-                    if (jellyfinPluginProxyAvailable) {
-                        add(
-                            DialogItem(
-                                text = stringResource(R.string.seerr_jellyfin_plugin),
-                                onClick = { onChoose.invoke(SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) },
-                            ),
-                        )
-                    }
-                    add(
-                        DialogItem(
-                            text = stringResource(R.string.api_key),
-                            onClick = { onChoose.invoke(SeerrAuthMethod.API_KEY) },
-                        ),
-                    )
-                    add(
-                        DialogItem(
-                            text = stringResource(R.string.seerr_jellyfin_user),
-                            onClick = { onChoose.invoke(SeerrAuthMethod.JELLYFIN) },
-                        ),
-                    )
-                    add(
-                        DialogItem(
-                            text = stringResource(R.string.seerr_local_user),
-                            onClick = { onChoose.invoke(SeerrAuthMethod.LOCAL) },
-                        ),
-                    )
-                },
+                listOf(
+                    DialogItem(
+                        text = stringResource(R.string.api_key),
+                        onClick = { onChoose.invoke(SeerrAuthMethod.API_KEY) },
+                    ),
+                    DialogItem(
+                        text = stringResource(R.string.seerr_jellyfin_user),
+                        onClick = { onChoose.invoke(SeerrAuthMethod.JELLYFIN) },
+                    ),
+                    DialogItem(
+                        text = stringResource(R.string.seerr_local_user),
+                        onClick = { onChoose.invoke(SeerrAuthMethod.LOCAL) },
+                    ),
+                ),
         )
 
     DialogPopup(

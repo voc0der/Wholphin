@@ -38,79 +38,77 @@ class UserSwitchListener
         init {
             context as AppCompatActivity
             context.lifecycleScope.launchDefault {
-                serverRepository.currentUserFlow.collect { user ->
+                serverRepository.current.collect { current ->
                     Timber.d("New user")
                     seerrServerRepository.clear()
                     homeSettingsService.currentSettings.update { HomePageResolvedSettings.EMPTY }
-                    if (user != null) {
-                        switchUser(user)
+                    if (current != null) {
+                        switchUser(current.user, autoDiscoverSeerrProxy = current.autoDiscoverSeerrProxy)
                     }
                 }
             }
         }
 
-        private suspend fun switchUser(user: JellyfinUser) =
-            supervisorScope {
-                // Switch the locale to either the user's choice or the system default (empty)
-                val localeList =
-                    user.uiLanguage?.let { LocaleListCompat.forLanguageTags(it) }
-                        ?: LocaleListCompat.getEmptyLocaleList()
-                Timber.i("Switching locale to %s", localeList)
-                withContext(Dispatchers.Main) {
-                    AppCompatDelegate.setApplicationLocales(localeList)
-                }
+        private suspend fun switchUser(
+            user: JellyfinUser,
+            autoDiscoverSeerrProxy: Boolean,
+        ) = supervisorScope {
+            // Switch the locale to either the user's choice or the system default (empty)
+            val localeList =
+                user.uiLanguage?.let { LocaleListCompat.forLanguageTags(it) }
+                    ?: LocaleListCompat.getEmptyLocaleList()
+            Timber.i("Switching locale to %s", localeList)
+            withContext(Dispatchers.Main) {
+                AppCompatDelegate.setApplicationLocales(localeList)
+            }
 
-                // Check for home settings
+            // Check for home settings
+            launchIO {
+                homeSettingsService.loadCurrentSettings(user.id)
+            }
+            if (BuildConfig.DISCOVER_ENABLED) {
+                // Check for seerr server
                 launchIO {
-                    homeSettingsService.loadCurrentSettings(user.id)
-                }
-                if (BuildConfig.DISCOVER_ENABLED) {
-                    // Check for seerr server
-                    launchIO {
-                        if (seerrServerRepository.discoverAndChangePluginProxy()) {
-                            return@launchIO
-                        }
-                        seerrServerDao
-                            .getUsersByJellyfinUser(user.rowId)
-                            .lastOrNull { it.authMethod != SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY }
-                            ?.let { seerrUser ->
-                                val server =
-                                    seerrServerDao.getServer(seerrUser.serverId)?.server
-                                if (server != null) {
-                                    Timber.i("Found a seerr user & server")
-                                    try {
-                                        seerrApi.update(
-                                            server.url,
-                                            seerrUser.credential,
-                                            useJellyfinAuth = false,
+                    if (autoDiscoverSeerrProxy && seerrServerRepository.discoverAndChangePluginProxy()) {
+                        return@launchIO
+                    }
+                    seerrServerDao
+                        .getUsersByJellyfinUser(user.rowId)
+                        .lastOrNull()
+                        ?.let { seerrUser ->
+                            val server =
+                                seerrServerDao.getServer(seerrUser.serverId)?.server
+                            if (server != null) {
+                                Timber.i("Found a seerr user & server")
+                                try {
+                                    seerrApi.update(
+                                        server.url,
+                                        seerrUser.credential,
+                                        useJellyfinAuth = seerrUser.authMethod == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY,
+                                    )
+                                    val userConfig =
+                                        seerrLogin(
+                                            seerrApi.api,
+                                            seerrUser.authMethod,
+                                            seerrUser.username,
+                                            seerrUser.password,
                                         )
-                                        val userConfig =
-                                            if (seerrUser.authMethod != SeerrAuthMethod.API_KEY) {
-                                                seerrLogin(
-                                                    seerrApi.api,
-                                                    seerrUser.authMethod,
-                                                    seerrUser.username,
-                                                    seerrUser.password,
-                                                )
-                                            } else {
-                                                seerrApi.api.usersApi.authMeGet()
-                                            }
-                                        seerrServerRepository.set(
-                                            server,
-                                            seerrUser,
-                                            userConfig,
-                                        )
-                                    } catch (ex: Exception) {
-                                        Timber.w(
-                                            ex,
-                                            "Error logging into %s",
-                                            server.url,
-                                        )
-                                        seerrServerRepository.error(server, seerrUser, ex)
-                                    }
+                                    seerrServerRepository.set(
+                                        server,
+                                        seerrUser,
+                                        userConfig,
+                                    )
+                                } catch (ex: Exception) {
+                                    Timber.w(
+                                        ex,
+                                        "Error logging into %s",
+                                        server.url,
+                                    )
+                                    seerrServerRepository.error(server, seerrUser, ex)
                                 }
                             }
-                    }
+                        }
                 }
             }
+        }
     }
