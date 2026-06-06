@@ -67,19 +67,23 @@ class UserSwitchListener
                 if (BuildConfig.DISCOVER_ENABLED) {
                     // Check for seerr server
                     launchIO {
-                        seerrServerRepository.refreshRequestProxy()
-                    }
-                    launchIO {
+                        if (seerrServerRepository.discoverAndChangePluginProxy()) {
+                            return@launchIO
+                        }
                         seerrServerDao
                             .getUsersByJellyfinUser(user.rowId)
-                            .lastOrNull()
+                            .lastOrNull { it.authMethod != SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY }
                             ?.let { seerrUser ->
                                 val server =
                                     seerrServerDao.getServer(seerrUser.serverId)?.server
                                 if (server != null) {
                                     Timber.i("Found a seerr user & server")
                                     try {
-                                        seerrApi.update(server.url, seerrUser.credential)
+                                        seerrApi.update(
+                                            server.url,
+                                            seerrUser.credential,
+                                            useJellyfinAuth = false,
+                                        )
                                         val userConfig =
                                             if (seerrUser.authMethod != SeerrAuthMethod.API_KEY) {
                                                 seerrLogin(

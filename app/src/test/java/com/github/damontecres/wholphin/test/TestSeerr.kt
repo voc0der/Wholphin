@@ -1,20 +1,12 @@
 package com.github.damontecres.wholphin.test
 
 import com.github.damontecres.wholphin.api.seerr.infrastructure.Serializer
-import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyRequest
+import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyClient
 import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyStatusResponse
 import com.github.damontecres.wholphin.api.seerrproxy.isAvailable
 import com.github.damontecres.wholphin.ui.setup.seerr.createSeerrApiUrl
 import com.github.damontecres.wholphin.ui.setup.seerr.createUrls
 import com.github.damontecres.wholphin.ui.setup.seerr.migrateSeerrUrl
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.boolean
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -250,25 +242,16 @@ class TestSeerr {
     }
 
     @Test
-    fun testSeerrProxyRequestJson() {
-        val encoded =
-            Serializer.kotlinxSerializationJson
-                .encodeToString(
-                    SeerrProxyRequest(
-                        mediaType = "tv",
-                        mediaId = 1399,
-                        seasons = JsonArray(listOf(JsonPrimitive(1), JsonPrimitive(2))),
-                        is4k = false,
-                    ),
-                ).let { Serializer.kotlinxSerializationJson.parseToJsonElement(it).jsonObject }
+    fun testSeerrProxyApiUrl() {
+        val client = SeerrProxyClient(okHttpClient = okhttp3.OkHttpClient())
 
-        assertEquals("tv", encoded["mediaType"]?.jsonPrimitive?.content)
-        assertEquals(1399, encoded["mediaId"]?.jsonPrimitive?.int)
-        assertEquals(false, encoded["is4k"]?.jsonPrimitive?.boolean)
         assertEquals(
-            listOf(1, 2),
-            encoded["seasons"]?.jsonArray?.map { it.jsonPrimitive.int },
+            "http://jellyfin.example.com/Plugins/SeerrProxy/api/v1",
+            client.createApiUrl("http://jellyfin.example.com"),
         )
-        assertFalse(encoded.containsKey("userId"))
+        assertEquals(
+            "http://jellyfin.example.com/base/Plugins/SeerrProxy/api/v1",
+            client.createApiUrl("http://jellyfin.example.com/base/"),
+        )
     }
 }

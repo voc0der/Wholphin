@@ -1,13 +1,11 @@
 package com.github.damontecres.wholphin.services
 
-import com.github.damontecres.wholphin.BuildConfig
 import com.github.damontecres.wholphin.api.seerr.SeerrApiClient
 import com.github.damontecres.wholphin.api.seerr.model.AuthJellyfinPostRequest
 import com.github.damontecres.wholphin.api.seerr.model.AuthLocalPostRequest
 import com.github.damontecres.wholphin.api.seerr.model.PublicSettings
 import com.github.damontecres.wholphin.api.seerr.model.User
 import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyClient
-import com.github.damontecres.wholphin.api.seerrproxy.SeerrProxyStatusResponse
 import com.github.damontecres.wholphin.api.seerrproxy.isAvailable
 import com.github.damontecres.wholphin.data.SeerrServerDao
 import com.github.damontecres.wholphin.data.ServerRepository
@@ -49,12 +47,6 @@ class SeerrServerRepository
         private val _connection =
             MutableStateFlow<SeerrConnectionStatus>(SeerrConnectionStatus.NotConfigured)
         val connection: StateFlow<SeerrConnectionStatus> = _connection
-        private val _requestProxyConnection =
-            MutableStateFlow<SeerrRequestProxyConnectionStatus>(
-                SeerrRequestProxyConnectionStatus.NotAvailable,
-            )
-        val requestProxyConnection: StateFlow<SeerrRequestProxyConnectionStatus> =
-            _requestProxyConnection
 
         val current: Flow<CurrentSeerr?> =
             _connection.map { (it as? SeerrConnectionStatus.Success)?.current }
@@ -63,13 +55,9 @@ class SeerrServerRepository
         val currentUser: Flow<SeerrUser?> =
             connection.map { (it as? SeerrConnectionStatus.Success)?.current?.user }
         val currentUserConfig: Flow<SeerrUserConfig?> =
-            combine(current, requestProxyConnection) { current, requestProxy ->
-                current?.config ?: (requestProxy as? SeerrRequestProxyConnectionStatus.Available)?.userConfig
-            }
+            current.map { it?.config }
         val currentServerConfig: Flow<PublicSettings?> =
-            combine(current, requestProxyConnection) { current, requestProxy ->
-                current?.serverConfig ?: (requestProxy as? SeerrRequestProxyConnectionStatus.Available)?.serverConfig
-            }
+            current.map { it?.serverConfig }
         val currentUserId: Flow<Int?> = currentUserConfig.map { it?.id }
         val request4kMovieEnabled: Flow<Boolean> =
             combine(currentUserConfig, currentServerConfig) { config, serverConfig ->
@@ -86,29 +74,50 @@ class SeerrServerRepository
          * Whether Seerr integration is currently active of not
          */
         val active: Flow<Boolean> =
-            combine(connection, requestProxyConnection) { connection, requestProxy ->
-                (connection is SeerrConnectionStatus.Success && seerrApi.active) ||
-                    (
-                        BuildConfig.DISCOVER_ENABLED &&
-                            requestProxy is SeerrRequestProxyConnectionStatus.Available &&
-                            requestProxy.discoverAvailable
-                    )
+            connection.map { connection ->
+                connection is SeerrConnectionStatus.Success && seerrApi.active
             }
-        val requestProxyActive: Flow<Boolean> =
-            requestProxyConnection.map { it is SeerrRequestProxyConnectionStatus.Available }
 
         fun clear() {
             _connection.update { SeerrConnectionStatus.NotConfigured }
-            _requestProxyConnection.update { SeerrRequestProxyConnectionStatus.NotAvailable }
             seerrApi.update("", null)
         }
 
-        fun clearRequestProxy() {
-            _requestProxyConnection.update { SeerrRequestProxyConnectionStatus.NotAvailable }
+        suspend fun currentJellyfinPluginProxyAvailable(): Boolean = probeCurrentJellyfinPluginProxy() != null
+
+        suspend fun discoverAndChangePluginProxy(): Boolean {
+            val probe = probeCurrentJellyfinPluginProxy() ?: return false
+            val jellyfinUser = serverRepository.currentUser ?: return false
+            var server = seerrServerDao.getServer(probe.apiUrl)
+            if (server == null) {
+                seerrServerDao.addServer(SeerrServer(url = probe.apiUrl))
+                server = seerrServerDao.getServer(probe.apiUrl)
+            }
+            server?.server?.let { seerrServer ->
+                val user =
+                    SeerrUser(
+                        jellyfinUserRowId = jellyfinUser.rowId,
+                        serverId = seerrServer.id,
+                        authMethod = SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY,
+                        username = null,
+                        password = null,
+                        credential = null,
+                    )
+                seerrServerDao.addUser(user)
+                seerrApi.update(seerrServer.url, null, useJellyfinAuth = true)
+                _connection.update {
+                    SeerrConnectionStatus.Success(
+                        CurrentSeerr(seerrServer, user, probe.userConfig, probe.serverConfig),
+                    )
+                }
+                Timber.i("Using Seerr Proxy transport for %s", probe.jellyfinServerUrl)
+                return true
+            }
+            return false
         }
 
-        suspend fun refreshRequestProxy(): Boolean {
-            val jellyfinServerUrl = serverRepository.currentServer?.url ?: return false
+        private suspend fun probeCurrentJellyfinPluginProxy(): SeerrPluginProxyProbe? {
+            val jellyfinServerUrl = serverRepository.currentServer?.url ?: return null
             val status =
                 try {
                     seerrProxyClient.status(jellyfinServerUrl)
@@ -117,8 +126,7 @@ class SeerrServerRepository
                     null
                 }
             if (status?.isAvailable != true) {
-                _requestProxyConnection.update { SeerrRequestProxyConnectionStatus.NotAvailable }
-                return false
+                return null
             }
 
             val api = seerrProxyClient.createApiClient(jellyfinServerUrl)
@@ -127,26 +135,22 @@ class SeerrServerRepository
                     api.usersApi.authMeGet()
                 } catch (ex: Exception) {
                     Timber.w(ex, "Seerr Proxy API user config is not available at %s", jellyfinServerUrl)
-                    null
+                    return null
                 }
             val serverConfig =
                 try {
                     api.settingsApi.settingsPublicGet()
                 } catch (ex: Exception) {
                     Timber.w(ex, "Seerr Proxy API public settings are not available at %s", jellyfinServerUrl)
-                    null
+                    return null
                 }
-            _requestProxyConnection.update {
-                Timber.i("Found Seerr Proxy for %s", jellyfinServerUrl)
-                SeerrRequestProxyConnectionStatus.Available(
-                    jellyfinServerUrl,
-                    status,
-                    api,
-                    userConfig,
-                    serverConfig,
-                )
-            }
-            return true
+
+            return SeerrPluginProxyProbe(
+                jellyfinServerUrl = jellyfinServerUrl,
+                apiUrl = seerrProxyClient.createApiUrl(jellyfinServerUrl),
+                userConfig = userConfig,
+                serverConfig = serverConfig,
+            )
         }
 
         fun error(
@@ -207,6 +211,13 @@ class SeerrServerRepository
             username: String,
             password: String,
         ) {
+            if (authMethod == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) {
+                if (!discoverAndChangePluginProxy()) {
+                    throw IllegalStateException("Jellyfin Seerr Proxy is not available for the current user.")
+                }
+                return
+            }
+
             var server = seerrServerDao.getServer(url)
             if (server == null) {
                 seerrServerDao.addServer(SeerrServer(url = url))
@@ -239,6 +250,13 @@ class SeerrServerRepository
             username: String?,
             passwordOrApiKey: String,
         ): LoadingState {
+            if (authMethod == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) {
+                if (!currentJellyfinPluginProxyAvailable()) {
+                    throw IllegalStateException("Jellyfin Seerr Proxy is not available for the current user.")
+                }
+                return LoadingState.Success
+            }
+
             val apiKey = passwordOrApiKey.takeIf { authMethod == SeerrAuthMethod.API_KEY }
             val api =
                 SeerrApiClient(
@@ -286,20 +304,12 @@ sealed interface SeerrConnectionStatus {
     ) : SeerrConnectionStatus
 }
 
-sealed interface SeerrRequestProxyConnectionStatus {
-    data object NotAvailable : SeerrRequestProxyConnectionStatus
-
-    data class Available(
-        val jellyfinServerUrl: String,
-        val status: SeerrProxyStatusResponse,
-        val api: SeerrApiClient,
-        val userConfig: SeerrUserConfig?,
-        val serverConfig: PublicSettings?,
-    ) : SeerrRequestProxyConnectionStatus
-}
-
-val SeerrRequestProxyConnectionStatus.Available.discoverAvailable: Boolean
-    get() = userConfig != null && serverConfig != null
+private data class SeerrPluginProxyProbe(
+    val jellyfinServerUrl: String,
+    val apiUrl: String,
+    val userConfig: SeerrUserConfig,
+    val serverConfig: PublicSettings,
+)
 
 data class CurrentSeerr(
     val server: SeerrServer,
@@ -348,6 +358,10 @@ suspend fun seerrLogin(
         SeerrAuthMethod.API_KEY -> {
             client.usersApi.authMeGet()
         }
+
+        SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY -> {
+            client.usersApi.authMeGet()
+        }
     }
 
 fun CurrentSeerr?.imageUrlBuilder(
@@ -355,7 +369,9 @@ fun CurrentSeerr?.imageUrlBuilder(
     path: String?,
 ): String? {
     if (this == null) return null
-    val cacheImages = serverConfig.cacheImages == true
+    val cacheImages =
+        serverConfig.cacheImages == true &&
+            user.authMethod != SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY
     val base =
         if (cacheImages) {
             server.url.removeSuffix("/") + "/imageproxy/tmdb"

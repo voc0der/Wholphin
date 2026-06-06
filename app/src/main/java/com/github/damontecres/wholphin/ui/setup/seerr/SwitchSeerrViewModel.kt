@@ -7,7 +7,6 @@ import com.github.damontecres.wholphin.api.seerr.infrastructure.ClientException
 import com.github.damontecres.wholphin.data.ServerRepository
 import com.github.damontecres.wholphin.data.model.SeerrAuthMethod
 import com.github.damontecres.wholphin.services.SeerrServerRepository
-import com.github.damontecres.wholphin.services.SeerrService
 import com.github.damontecres.wholphin.ui.launchIO
 import com.github.damontecres.wholphin.ui.showToast
 import com.github.damontecres.wholphin.util.LoadingState
@@ -26,17 +25,22 @@ class SwitchSeerrViewModel
     constructor(
         @param:ApplicationContext private val context: Context,
         private val seerrServerRepository: SeerrServerRepository,
-        private val seerrService: SeerrService,
         private val serverRepository: ServerRepository,
     ) : ViewModel() {
         val currentUser = serverRepository.currentUserFlow
         val currentSeerrServer = seerrServerRepository.currentServer
 
         val serverConnectionStatus = MutableStateFlow<LoadingState>(LoadingState.Pending)
+        val jellyfinPluginProxyAvailable = MutableStateFlow(false)
 
         init {
+            refreshJellyfinPluginProxyAvailability()
+        }
+
+        fun refreshJellyfinPluginProxyAvailability() {
             viewModelScope.launchIO {
-                seerrServerRepository.refreshRequestProxy()
+                val available = seerrServerRepository.currentJellyfinPluginProxyAvailable()
+                jellyfinPluginProxyAvailable.update { available }
             }
         }
 
@@ -48,6 +52,23 @@ class SwitchSeerrViewModel
         ) {
             viewModelScope.launchIO {
                 serverConnectionStatus.update { LoadingState.Loading }
+                if (authMethod == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) {
+                    try {
+                        seerrServerRepository.addAndChangeServer(
+                            url = "",
+                            authMethod = authMethod,
+                            username = "",
+                            password = "",
+                        )
+                        serverConnectionStatus.update { LoadingState.Success }
+                    } catch (ex: Exception) {
+                        Timber.w(ex, "Could not use Jellyfin Seerr Proxy")
+                        showToast(context, "Could not connect")
+                        serverConnectionStatus.update { LoadingState.Error(ex) }
+                    }
+                    return@launchIO
+                }
+
                 val urls =
                     try {
                         createUrls(url)
@@ -102,6 +123,10 @@ class SwitchSeerrViewModel
                                 url.toString(),
                                 passwordOrApiKey,
                             )
+                        }
+
+                        SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY -> {
+                            Unit
                         }
                     }
                     serverConnectionStatus.update { LoadingState.Success }
