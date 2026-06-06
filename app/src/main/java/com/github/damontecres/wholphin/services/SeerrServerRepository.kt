@@ -83,8 +83,6 @@ class SeerrServerRepository
             seerrApi.update("", null)
         }
 
-        suspend fun currentJellyfinPluginProxyAvailable(): Boolean = probeCurrentJellyfinPluginProxy() != null
-
         suspend fun discoverAndChangePluginProxy(): Boolean {
             val probe = probeCurrentJellyfinPluginProxy() ?: return false
             val jellyfinUser = serverRepository.currentUser ?: return false
@@ -212,10 +210,7 @@ class SeerrServerRepository
             password: String,
         ) {
             if (authMethod == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) {
-                if (!discoverAndChangePluginProxy()) {
-                    throw IllegalStateException("Jellyfin Seerr Proxy is not available for the current user.")
-                }
-                return
+                throw IllegalArgumentException("Jellyfin plugin proxy is discovered from the current Jellyfin server.")
             }
 
             var server = seerrServerDao.getServer(url)
@@ -250,13 +245,6 @@ class SeerrServerRepository
             username: String?,
             passwordOrApiKey: String,
         ): LoadingState {
-            if (authMethod == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) {
-                if (!currentJellyfinPluginProxyAvailable()) {
-                    throw IllegalStateException("Jellyfin Seerr Proxy is not available for the current user.")
-                }
-                return LoadingState.Success
-            }
-
             val apiKey = passwordOrApiKey.takeIf { authMethod == SeerrAuthMethod.API_KEY }
             val api =
                 SeerrApiClient(

@@ -31,16 +31,23 @@ class SwitchSeerrViewModel
         val currentSeerrServer = seerrServerRepository.currentServer
 
         val serverConnectionStatus = MutableStateFlow<LoadingState>(LoadingState.Pending)
-        val jellyfinPluginProxyAvailable = MutableStateFlow(false)
 
-        init {
-            refreshJellyfinPluginProxyAvailability()
-        }
-
-        fun refreshJellyfinPluginProxyAvailability() {
-            viewModelScope.launchIO {
-                val available = seerrServerRepository.currentJellyfinPluginProxyAvailable()
-                jellyfinPluginProxyAvailable.update { available }
+        suspend fun useJellyfinPluginProxyIfAvailable(): Boolean {
+            serverConnectionStatus.update { LoadingState.Loading }
+            return try {
+                val changed = seerrServerRepository.discoverAndChangePluginProxy()
+                serverConnectionStatus.update {
+                    if (changed) {
+                        LoadingState.Success
+                    } else {
+                        LoadingState.Pending
+                    }
+                }
+                changed
+            } catch (ex: Exception) {
+                Timber.w(ex, "Could not use Jellyfin Seerr Proxy")
+                serverConnectionStatus.update { LoadingState.Pending }
+                false
             }
         }
 
@@ -52,23 +59,6 @@ class SwitchSeerrViewModel
         ) {
             viewModelScope.launchIO {
                 serverConnectionStatus.update { LoadingState.Loading }
-                if (authMethod == SeerrAuthMethod.JELLYFIN_PLUGIN_PROXY) {
-                    try {
-                        seerrServerRepository.addAndChangeServer(
-                            url = "",
-                            authMethod = authMethod,
-                            username = "",
-                            password = "",
-                        )
-                        serverConnectionStatus.update { LoadingState.Success }
-                    } catch (ex: Exception) {
-                        Timber.w(ex, "Could not use Jellyfin Seerr Proxy")
-                        showToast(context, "Could not connect")
-                        serverConnectionStatus.update { LoadingState.Error(ex) }
-                    }
-                    return@launchIO
-                }
-
                 val urls =
                     try {
                         createUrls(url)

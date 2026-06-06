@@ -450,7 +450,6 @@ fun PreferencesContent(
                                                     }
 
                                                     SeerrConnectionStatus.NotConfigured -> {
-                                                        seerrVm.refreshJellyfinPluginProxyAvailability()
                                                         SeerrDialogMode.Add
                                                     }
 
@@ -644,11 +643,7 @@ fun PreferencesContent(
             SeerrDialogMode.Add -> {
                 val currentUser by seerrVm.currentUser.collectAsState(null)
                 val status by seerrVm.serverConnectionStatus.collectAsState(LoadingState.Pending)
-                val jellyfinPluginProxyAvailable by seerrVm.jellyfinPluginProxyAvailable.collectAsState()
                 val serverAddedMessage = stringResource(R.string.seerr_server_added)
-                LaunchedEffect(Unit) {
-                    seerrVm.refreshJellyfinPluginProxyAvailability()
-                }
                 LaunchedEffect(status) {
                     if (status == LoadingState.Success) {
                         Toast.makeText(context, serverAddedMessage, Toast.LENGTH_SHORT).show()
@@ -658,7 +653,7 @@ fun PreferencesContent(
                 AddSeerServerDialog(
                     currentUsername = currentUser?.name,
                     status = status,
-                    jellyfinPluginProxyAvailable = jellyfinPluginProxyAvailable,
+                    onTryJellyfinPluginProxy = seerrVm::useJellyfinPluginProxyIfAvailable,
                     onSubmit = seerrVm::submitServer,
                     onResetStatus = seerrVm::resetStatus,
                     onDismissRequest = { seerrDialogMode = SeerrDialogMode.None },

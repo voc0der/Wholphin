@@ -77,6 +77,7 @@ class ServerRepository
         suspend fun changeUser(
             server: JellyfinServer,
             user: JellyfinUser,
+            autoDiscoverSeerrProxy: Boolean = false,
         ): CurrentUser =
             withContext(ioDispatcher) {
                 if (server.id != user.serverId) {
@@ -108,7 +109,7 @@ class ServerRepository
                             currentUserId = updatedUser.id.toServerString()
                         }.build()
                 }
-                val currentUser = CurrentUser(updatedServer, updatedUser)
+                val currentUser = CurrentUser(updatedServer, updatedUser, autoDiscoverSeerrProxy)
                 withContext(Dispatchers.Main) {
                     _current.value = currentUser
                     _currentUserDto.value = userDto
@@ -208,7 +209,7 @@ class ServerRepository
                             }
                         }
                     if (user != null) {
-                        return@withContext changeUser(server, user)
+                        return@withContext changeUser(server, user, autoDiscoverSeerrProxy = true)
                     } else {
                         throw IllegalArgumentException("Authentication result's user was null")
                     }
@@ -281,7 +282,7 @@ class ServerRepository
             if (cur?.user?.id == updatedUser.id && cur.server?.id == user.serverId) {
                 // Updating current user, so push out the change
                 current.value?.let {
-                    val newCurrent = it.copy(user = updatedUser)
+                    val newCurrent = it.copy(user = updatedUser, autoDiscoverSeerrProxy = false)
                     _current.value = newCurrent
                 }
             }
@@ -314,4 +315,5 @@ class ServerRepository
 data class CurrentUser(
     val server: JellyfinServer,
     val user: JellyfinUser,
+    val autoDiscoverSeerrProxy: Boolean = false,
 )
