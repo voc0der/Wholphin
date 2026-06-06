@@ -21,9 +21,6 @@ class SeerrApi(
         )
         private set
 
-    var usesJellyfinAuth: Boolean = false
-        private set
-
     val active: Boolean get() = api.baseUrl.isNotNullOrBlank() && BuildConfig.DISCOVER_ENABLED
 
     fun update(
@@ -31,7 +28,6 @@ class SeerrApi(
         apiKey: String?,
         useJellyfinAuth: Boolean = false,
     ) {
-        usesJellyfinAuth = useJellyfinAuth
         api =
             SeerrApiClient(
                 baseUrl = if (useJellyfinAuth) baseUrl else createSeerrApiUrl(baseUrl),
